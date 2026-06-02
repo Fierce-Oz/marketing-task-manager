@@ -243,9 +243,22 @@ function AuthScreen({onAuth}){
 }
 
 export default function App(){
-  const [currentUser,setCurrentUser]=useState(null);
-  if(!currentUser) return <AuthScreen onAuth={setCurrentUser}/>;
-  return <MainApp currentUser={currentUser} onLogout={()=>setCurrentUser(null)}/>;
+  const [currentUser,setCurrentUser]=useState(()=>{
+    try{ const s=localStorage.getItem("cp_user"); return s?JSON.parse(s):null; }catch(e){ return null; }
+  });
+
+  const handleAuth=(user)=>{
+    localStorage.setItem("cp_user",JSON.stringify(user));
+    setCurrentUser(user);
+  };
+
+  const handleLogout=()=>{
+    localStorage.removeItem("cp_user");
+    setCurrentUser(null);
+  };
+
+  if(!currentUser) return <AuthScreen onAuth={handleAuth}/>;
+  return <MainApp currentUser={currentUser} onLogout={handleLogout}/>;
 }
 
 function MainApp({currentUser,onLogout}){
