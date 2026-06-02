@@ -196,7 +196,7 @@ function AuthScreen({onAuth}){
     <div style={{minHeight:"100vh",background:"#0d0d0d",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans',sans-serif"}}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:wght@700&display=swap" rel="stylesheet"/>
       <div style={{width:420,background:"#141414",border:"1px solid #222",borderRadius:14,padding:40,boxShadow:"0 24px 80px #000000aa"}}>
-        <div style={{fontFamily:"'Playfair Display',serif",fontSize:26,color:"#f0ece4",marginBottom:6}}>Marketing Task Manager</div>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:26,color:"#f0ece4",marginBottom:6}}>Sales & Marketing Task Manager</div>
         <div style={{fontSize:12,color:"#555",marginBottom:32,letterSpacing:"0.05em",textTransform:"uppercase"}}>Team Access</div>
         {mode==="pick"&&(
           <>
@@ -416,7 +416,7 @@ function MainApp({currentUser,onLogout}){
 
       {/* Header */}
       <div style={{borderBottom:"1px solid #1e1e1e",padding:"16px 40px",display:"flex",alignItems:"center",justifyContent:"space-between",background:"#111",position:"sticky",top:0,zIndex:20}}>
-        <div style={{fontFamily:"'Playfair Display',serif",fontSize:20,color:"#f0ece4"}}>Marketing Task Manager</div>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:20,color:"#f0ece4"}}>Sales & Marketing Task Manager</div>
         <div style={{display:"flex",gap:4,background:"#161616",border:"1px solid #222",borderRadius:8,padding:4}}>
           {tabs.map(([id,label])=>(
             <button key={id} onClick={()=>setTab(id)} style={{background:tab===id?"#2a2a2a":"transparent",border:"none",color:tab===id?"#f0ece4":"#666",borderRadius:6,padding:"8px 18px",cursor:"pointer",fontSize:13,fontFamily:"'DM Sans',sans-serif",fontWeight:tab===id?500:400}}>{label}</button>
