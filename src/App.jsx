@@ -29,7 +29,7 @@ const inputStyle = {width:"100%",background:"#111",border:"1px solid #222",borde
 function ModalOverlay({children,onClose}){
   return(
     <div style={{position:"fixed",inset:0,background:"#00000099",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}} onClick={onClose}>
-      <div onClick={e=>e.stopPropagation()} style={{background:"#161616",border:"1px solid #252525",borderRadius:12,padding:32,width:500,maxWidth:"92vw",maxHeight:"88vh",overflowY:"auto",boxShadow:"0 32px 80px #000000bb"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"#161616",border:"1px solid #252525",borderRadius:12,padding:32,width:540,maxWidth:"92vw",maxHeight:"88vh",overflowY:"auto",boxShadow:"0 32px 80px #000000bb"}}>
         {children}
       </div>
     </div>
@@ -57,6 +57,98 @@ function Avatar({name,color,size=28}){
   );
 }
 
+// ── Subtasks component ────────────────────────────────────────────────────────
+function SubtaskPanel({taskId}){
+  const [subtasks,setSubtasks]=useState([]);
+  const [newName,setNewName]=useState("");
+  const [loading,setLoading]=useState(true);
+
+  useEffect(()=>{
+    if(!taskId){setLoading(false);return;}
+    supabase.from("subtasks").select("*").eq("task_id",taskId).order("position").then(({data})=>{
+      setSubtasks(data||[]);
+      setLoading(false);
+    });
+  },[taskId]);
+
+  const completed=subtasks.filter(s=>s.completed).length;
+  const total=subtasks.length;
+  const pct=total>0?Math.round((completed/total)*100):0;
+
+  const addSubtask=async()=>{
+    if(!newName.trim()) return;
+    const{data}=await supabase.from("subtasks").insert({task_id:taskId,name:newName.trim(),position:total}).select().single();
+    setSubtasks(s=>[...s,data]);
+    setNewName("");
+  };
+
+  const toggleSubtask=async(sub)=>{
+    const{data}=await supabase.from("subtasks").update({completed:!sub.completed}).eq("id",sub.id).select().single();
+    setSubtasks(s=>s.map(x=>x.id===sub.id?data:x));
+  };
+
+  const deleteSubtask=async(id)=>{
+    await supabase.from("subtasks").delete().eq("id",id);
+    setSubtasks(s=>s.filter(x=>x.id!==id));
+  };
+
+  if(loading) return <div style={{fontSize:12,color:"#444",padding:"8px 0"}}>Loading steps...</div>;
+
+  return(
+    <div style={{marginBottom:20}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+        <FL>Steps</FL>
+        {total>0&&<span style={{fontSize:11,color:"#555"}}>{completed}/{total} complete</span>}
+      </div>
+
+      {/* Progress bar */}
+      {total>0&&(
+        <div style={{marginBottom:12}}>
+          <div style={{height:4,background:"#1e1e1e",borderRadius:2,overflow:"hidden",marginBottom:4}}>
+            <div style={{height:"100%",width:`${pct}%`,background:pct===100?"#4caf7d":"#5b8dee",borderRadius:2,transition:"width 0.3s ease"}}/>
+          </div>
+          <div style={{fontSize:10,color:pct===100?"#4caf7d":"#555",textAlign:"right"}}>{pct}%</div>
+        </div>
+      )}
+
+      {/* Step list */}
+      <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:10}}>
+        {subtasks.map((sub,idx)=>(
+          <div key={sub.id} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",background:"#111",borderRadius:6,border:`1px solid ${sub.completed?"#1e3e1e":"#1a1a1a"}`}}>
+            <button onClick={()=>toggleSubtask(sub)} style={{width:16,height:16,borderRadius:3,border:`1px solid ${sub.completed?"#4caf7d":"#333"}`,background:sub.completed?"#4caf7d22":"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0}}>
+              {sub.completed&&<span style={{fontSize:10,color:"#4caf7d"}}>✓</span>}
+            </button>
+            <span style={{flex:1,fontSize:12,color:sub.completed?"#555":"#c0bcb4",textDecoration:sub.completed?"line-through":"none"}}>
+              {idx+1}. {sub.name}
+            </span>
+            <button onClick={()=>deleteSubtask(sub.id)} style={{background:"none",border:"none",color:"#333",cursor:"pointer",fontSize:14,padding:"0 2px",lineHeight:1}}
+              onMouseEnter={e=>e.currentTarget.style.color="#a05050"}
+              onMouseLeave={e=>e.currentTarget.style.color="#333"}
+            >×</button>
+          </div>
+        ))}
+        {subtasks.length===0&&<div style={{fontSize:12,color:"#3a3a3a",padding:"6px 0"}}>No steps yet — add one below</div>}
+      </div>
+
+      {/* Add new step */}
+      <div style={{display:"flex",gap:8}}>
+        <input
+          value={newName}
+          onChange={e=>setNewName(e.target.value)}
+          onKeyDown={e=>{if(e.key==="Enter") addSubtask();}}
+          placeholder="Add a step..."
+          style={{...inputStyle,fontSize:12,padding:"7px 10px"}}
+        />
+        <button onClick={addSubtask} style={{background:"#1e1e1e",border:"1px solid #2a2a2a",color:"#888",borderRadius:6,padding:"7px 14px",cursor:"pointer",fontSize:12,fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap"}}
+          onMouseEnter={e=>{e.currentTarget.style.color="#f0ece4";e.currentTarget.style.borderColor="#444";}}
+          onMouseLeave={e=>{e.currentTarget.style.color="#888";e.currentTarget.style.borderColor="#2a2a2a";}}
+        >+ Add</button>
+      </div>
+    </div>
+  );
+}
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
 function AuthScreen({onAuth}){
   const [mode,setMode]=useState("login");
   const [pw,setPw]=useState("");
@@ -88,9 +180,7 @@ function AuthScreen({onAuth}){
   };
 
   if(loading) return(
-    <div style={{minHeight:"100vh",background:"#0d0d0d",display:"flex",alignItems:"center",justifyContent:"center",color:"#555",fontFamily:"'DM Sans',sans-serif"}}>
-      Loading...
-    </div>
+    <div style={{minHeight:"100vh",background:"#0d0d0d",display:"flex",alignItems:"center",justifyContent:"center",color:"#555",fontFamily:"'DM Sans',sans-serif"}}>Loading...</div>
   );
 
   return(
@@ -99,7 +189,6 @@ function AuthScreen({onAuth}){
       <div style={{width:420,background:"#141414",border:"1px solid #222",borderRadius:14,padding:40,boxShadow:"0 24px 80px #000000aa"}}>
         <div style={{fontFamily:"'Playfair Display',serif",fontSize:26,color:"#f0ece4",marginBottom:6}}>Marketing Task Manager</div>
         <div style={{fontSize:12,color:"#555",marginBottom:32,letterSpacing:"0.05em",textTransform:"uppercase"}}>Team Access</div>
-
         {mode==="pick"&&(
           <>
             <div style={{fontSize:13,color:"#888",marginBottom:16}}>Who are you?</div>
@@ -110,17 +199,13 @@ function AuthScreen({onAuth}){
                   onMouseLeave={e=>e.currentTarget.style.borderColor="#2a2a2a"}
                 >
                   <Avatar name={m.name} color={m.color} size={32}/>
-                  <div>
-                    <div style={{fontWeight:500}}>{m.name}</div>
-                    <div style={{fontSize:11,color:"#555"}}>{m.role}</div>
-                  </div>
+                  <div><div style={{fontWeight:500}}>{m.name}</div><div style={{fontSize:11,color:"#555"}}>{m.role}</div></div>
                 </button>
               ))}
             </div>
             <button onClick={()=>{setMode("register");setErr("");}} style={{background:"none",border:"none",color:"#5b8dee",fontSize:12,cursor:"pointer",padding:0,fontFamily:"'DM Sans',sans-serif"}}>+ Create new account</button>
           </>
         )}
-
         {(mode==="login"||mode==="register")&&(
           <>
             <FL>Team Password</FL>
@@ -302,9 +387,7 @@ function MainApp({currentUser,onLogout}){
   for(let d=1;d<=daysInMonth;d++) cells.push(d);
 
   if(loading) return(
-    <div style={{minHeight:"100vh",background:"#0d0d0d",display:"flex",alignItems:"center",justifyContent:"center",color:"#555",fontFamily:"'DM Sans',sans-serif"}}>
-      Loading your workspace...
-    </div>
+    <div style={{minHeight:"100vh",background:"#0d0d0d",display:"flex",alignItems:"center",justifyContent:"center",color:"#555",fontFamily:"'DM Sans',sans-serif"}}>Loading your workspace...</div>
   );
 
   return(
@@ -315,9 +398,7 @@ function MainApp({currentUser,onLogout}){
         <div style={{fontFamily:"'Playfair Display',serif",fontSize:20,color:"#f0ece4"}}>Marketing Task Manager</div>
         <div style={{display:"flex",gap:4,background:"#161616",border:"1px solid #222",borderRadius:8,padding:4}}>
           {[["calendar","Calendar"],["tasks","Task Manager"],["team","Team"]].map(([id,label])=>(
-            <button key={id} onClick={()=>setTab(id)} style={{background:tab===id?"#2a2a2a":"transparent",border:"none",color:tab===id?"#f0ece4":"#666",borderRadius:6,padding:"8px 20px",cursor:"pointer",fontSize:13,fontFamily:"'DM Sans',sans-serif",fontWeight:tab===id?500:400}}>
-              {label}
-            </button>
+            <button key={id} onClick={()=>setTab(id)} style={{background:tab===id?"#2a2a2a":"transparent",border:"none",color:tab===id?"#f0ece4":"#666",borderRadius:6,padding:"8px 20px",cursor:"pointer",fontSize:13,fontFamily:"'DM Sans',sans-serif",fontWeight:tab===id?500:400}}>{label}</button>
           ))}
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
@@ -330,6 +411,7 @@ function MainApp({currentUser,onLogout}){
         </div>
       </div>
 
+      {/* CALENDAR */}
       {tab==="calendar"&&(
         <div style={{padding:"32px 40px"}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:28}}>
@@ -393,6 +475,7 @@ function MainApp({currentUser,onLogout}){
         </div>
       )}
 
+      {/* TASK MANAGER */}
       {tab==="tasks"&&(
         <div style={{padding:"32px 40px",display:"flex",gap:28}}>
           <div style={{width:190,flexShrink:0}}>
@@ -466,6 +549,7 @@ function MainApp({currentUser,onLogout}){
         </div>
       )}
 
+      {/* TEAM */}
       {tab==="team"&&(
         <div style={{padding:"32px 40px"}}>
           <div style={{fontFamily:"'Playfair Display',serif",fontSize:22,marginBottom:6}}>Team Overview</div>
@@ -538,6 +622,7 @@ function MainApp({currentUser,onLogout}){
         </div>
       )}
 
+      {/* POST MODAL */}
       {postModal&&(
         <ModalOverlay onClose={()=>setPostModal(null)}>
           <div style={{fontFamily:"'Playfair Display',serif",fontSize:18,marginBottom:4}}>{postModal.editId?"Edit Post":"New Post"}</div>
@@ -575,6 +660,7 @@ function MainApp({currentUser,onLogout}){
         </ModalOverlay>
       )}
 
+      {/* ITEM MODAL */}
       {itemModal&&(
         <ModalOverlay onClose={()=>setItemModal(null)}>
           <div style={{fontFamily:"'Playfair Display',serif",fontSize:18,marginBottom:18}}>{itemModal.editId?"Edit":"New"} {listConfig[itemModal.type].label.slice(0,-1)}</div>
@@ -630,7 +716,18 @@ function MainApp({currentUser,onLogout}){
             </div>
           )}
           <FL>Description</FL>
-          <textarea value={itemForm.description||""} onChange={e=>setItemForm(f=>({...f,description:e.target.value}))} placeholder="Optional notes..." rows={3} style={{...inputStyle,resize:"vertical",lineHeight:1.6,marginBottom:20}}/>
+          <textarea value={itemForm.description||""} onChange={e=>setItemForm(f=>({...f,description:e.target.value}))} placeholder="Optional notes..." rows={2} style={{...inputStyle,resize:"vertical",lineHeight:1.6,marginBottom:20}}/>
+
+          {/* Steps / Subtasks — only for existing tasks */}
+          {itemModal.type==="tasks"&&itemModal.editId&&(
+            <div style={{borderTop:"1px solid #1e1e1e",paddingTop:20,marginBottom:4}}>
+              <SubtaskPanel taskId={itemModal.editId}/>
+            </div>
+          )}
+          {itemModal.type==="tasks"&&!itemModal.editId&&(
+            <div style={{fontSize:11,color:"#444",marginBottom:20,fontStyle:"italic"}}>Save the task first to add steps.</div>
+          )}
+
           <MA onCancel={()=>setItemModal(null)} onSave={saveItem} onDelete={itemModal.editId?deleteItem:null} saveLabel={itemModal.editId?"Save Changes":`Create ${listConfig[itemModal.type].label.slice(0,-1)}`}/>
         </ModalOverlay>
       )}
