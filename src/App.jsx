@@ -6,17 +6,16 @@ const MONTHS = ["January","February","March","April","May","June","July","August
 const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const PLATFORM_COLORS = { Instagram:"#E1306C", Twitter:"#1DA1F2", Facebook:"#1877F2", LinkedIn:"#0A66C2", TikTok:"#69C9D0" };
 
-// Fierce Arms palette: dark charcoal + orange accent
-const BG       = "#111213";   // page background
-const SURFACE  = "#1c1d1f";   // card/panel background
-const SURFACE2 = "#252729";   // elevated surface
-const BORDER   = "#2e3033";   // default border
-const BORDER2  = "#3a3d42";   // hover border
-const TEXT1    = "#f2f3f4";   // primary text
-const TEXT2    = "#9a9da3";   // secondary text
-const TEXT3    = "#5a5d63";   // muted text
-const ORANGE   = "#d4420a";   // Fierce orange
-const ORANGEHI = "#e85520";   // orange hover
+const BG       = "#111213";
+const SURFACE  = "#1c1d1f";
+const SURFACE2 = "#252729";
+const BORDER   = "#2e3033";
+const BORDER2  = "#3a3d42";
+const TEXT1    = "#f2f3f4";
+const TEXT2    = "#9a9da3";
+const TEXT3    = "#5a5d63";
+const ORANGE   = "#d4420a";
+const ORANGEHI = "#e85520";
 
 const STATUS_COLORS = {
   "Not Started":{ bg:"#1c1d1f", text:"#5a5d63", border:"#2e3033" },
@@ -30,11 +29,7 @@ const PRIORITY_COLORS = {
   High:   { text:"#c43030", border:"#3a1818" },
 };
 const MEMBER_COLORS = ["#d4420a","#6b8ccc","#4a9e60","#c47a30","#a07acc","#e85520","#3a9acc","#c43060"];
-const EVENT_TYPES = ["Tradeshow","Expo","Sponsorship","Industry Event","Conference","Other"];
-const EVENT_TYPE_COLORS = {
-  Tradeshow:"#d4420a", Expo:"#c47a30", Sponsorship:"#6b8ccc",
-  "Industry Event":"#4a9e60", Conference:"#a07acc", Other:"#5a5d63"
-};
+const COLOR_OPTIONS = ["#d4420a","#e85520","#c47a30","#4a9e60","#6b8ccc","#a07acc","#3a9acc","#c43060","#c43030","#5a5d63","#888","#2a9acc"];
 
 function getDaysInMonth(y,m){ return new Date(y,m+1,0).getDate(); }
 function getFirstDay(y,m){ return new Date(y,m,1).getDay(); }
@@ -177,6 +172,73 @@ function CalendarShell({currentMonth,currentYear,onPrev,onNext,legend,children})
   );
 }
 
+// ── Event Type Manager Modal ──────────────────────────────────────────────────
+function EventTypeManager({eventTypes,setEventTypes,onClose}){
+  const [newName,setNewName]=useState("");
+  const [newColor,setNewColor]=useState(COLOR_OPTIONS[0]);
+  const [err,setErr]=useState("");
+
+  const addType=async()=>{
+    if(!newName.trim()){setErr("Enter a name."); return;}
+    if(eventTypes.find(t=>t.name.toLowerCase()===newName.trim().toLowerCase())){setErr("That type already exists."); return;}
+    const{data,error}=await supabase.from("event_types").insert({name:newName.trim(),color:newColor}).select().single();
+    if(error){setErr("Error saving."); return;}
+    setEventTypes(prev=>[...prev,data]);
+    setNewName(""); setErr("");
+  };
+
+  const deleteType=async(id)=>{
+    await supabase.from("event_types").delete().eq("id",id);
+    setEventTypes(prev=>prev.filter(t=>t.id!==id));
+  };
+
+  return(
+    <ModalOverlay onClose={onClose}>
+      <div style={{fontFamily:"'Playfair Display',serif",fontSize:18,marginBottom:4,color:TEXT1}}>Manage Event Types</div>
+      <div style={{fontSize:12,color:TEXT3,marginBottom:20}}>Add or remove tags for the Events calendar</div>
+
+      {/* Existing types */}
+      <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:20}}>
+        {eventTypes.map(t=>(
+          <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:7}}>
+            <div style={{width:10,height:10,borderRadius:2,background:t.color,flexShrink:0}}/>
+            <span style={{flex:1,fontSize:13,color:TEXT1}}>{t.name}</span>
+            <span style={{fontSize:11,color:t.color,border:`1px solid ${t.color}44`,borderRadius:4,padding:"2px 8px"}}>{t.name}</span>
+            <button onClick={()=>deleteType(t.id)} style={{background:"none",border:"none",color:TEXT3,cursor:"pointer",fontSize:16,padding:"0 4px",lineHeight:1,flexShrink:0}}
+              onMouseEnter={e=>e.currentTarget.style.color="#a05050"}
+              onMouseLeave={e=>e.currentTarget.style.color=TEXT3}
+            >×</button>
+          </div>
+        ))}
+      </div>
+
+      {/* Add new */}
+      <div style={{borderTop:`1px solid ${BORDER}`,paddingTop:18}}>
+        <FL>Add New Type</FL>
+        <div style={{display:"flex",gap:8,marginBottom:10}}>
+          <input value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter") addType();}} placeholder="Type name..." style={{...inputStyle,flex:1}}/>
+          <button onClick={addType} style={{background:ORANGE,border:"none",color:"#fff",borderRadius:6,padding:"9px 16px",cursor:"pointer",fontSize:13,fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap"}}
+            onMouseEnter={e=>e.currentTarget.style.background=ORANGEHI}
+            onMouseLeave={e=>e.currentTarget.style.background=ORANGE}
+          >+ Add</button>
+        </div>
+        <FL>Color</FL>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
+          {COLOR_OPTIONS.map(c=>(
+            <button key={c} onClick={()=>setNewColor(c)} style={{width:24,height:24,borderRadius:4,background:c,border:newColor===c?`2px solid ${TEXT1}`:`2px solid transparent`,cursor:"pointer",padding:0,flexShrink:0}}/>
+          ))}
+        </div>
+        {err&&<div style={{fontSize:12,color:"#c47a30"}}>{err}</div>}
+      </div>
+
+      <div style={{marginTop:20,display:"flex",justifyContent:"flex-end"}}>
+        <button onClick={onClose} style={{background:SURFACE2,border:`1px solid ${BORDER}`,color:TEXT2,borderRadius:6,padding:"8px 20px",cursor:"pointer",fontSize:13,fontFamily:"'DM Sans',sans-serif"}}>Done</button>
+      </div>
+    </ModalOverlay>
+  );
+}
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
 function AuthScreen({onAuth}){
   const [mode,setMode]=useState("login");
   const [pw,setPw]=useState("");
@@ -219,7 +281,6 @@ function AuthScreen({onAuth}){
           </div>
         </div>
         <div style={{fontSize:11,color:TEXT3,marginBottom:28,letterSpacing:"0.1em",textTransform:"uppercase"}}>Team Access · Fierce Firearms</div>
-
         {mode==="pick"&&(
           <>
             <div style={{fontSize:13,color:TEXT2,marginBottom:14}}>Who are you?</div>
@@ -285,7 +346,9 @@ function MainApp({currentUser,onLogout}){
   const [posts,setPosts]=useState([]);
   const [events,setEvents]=useState([]);
   const [members,setMembers]=useState([]);
+  const [eventTypes,setEventTypes]=useState([]);
   const [loading,setLoading]=useState(true);
+  const [showTypeManager,setShowTypeManager]=useState(false);
 
   const [contentYear,setContentYear]=useState(today.getFullYear());
   const [contentMonth,setContentMonth]=useState(today.getMonth());
@@ -298,7 +361,7 @@ function MainApp({currentUser,onLogout}){
   const fileRef=useRef();
 
   const [eventModal,setEventModal]=useState(null);
-  const [eventForm,setEventForm]=useState({title:"",event_date:"",end_date:"",location:"",description:"",event_type:"Tradeshow",assignee_id:""});
+  const [eventForm,setEventForm]=useState({title:"",event_date:"",end_date:"",location:"",description:"",event_type:"",assignee_id:""});
 
   const [activeList,setActiveList]=useState("tasks");
   const [itemModal,setItemModal]=useState(null);
@@ -307,20 +370,24 @@ function MainApp({currentUser,onLogout}){
 
   useEffect(()=>{
     async function fetchAll(){
-      const [m,p,ca,t,po,ev]=await Promise.all([
+      const [m,p,ca,t,po,ev,et]=await Promise.all([
         supabase.from("members").select("*").order("created_at"),
         supabase.from("programs").select("*").order("created_at"),
         supabase.from("campaigns").select("*").order("created_at"),
         supabase.from("tasks").select("*").order("created_at"),
         supabase.from("posts").select("*").order("post_date"),
         supabase.from("events").select("*").order("event_date"),
+        supabase.from("event_types").select("*").order("created_at"),
       ]);
       setMembers(m.data||[]); setPrograms(p.data||[]); setCampaigns(ca.data||[]);
       setTasks(t.data||[]); setPosts(po.data||[]); setEvents(ev.data||[]);
+      setEventTypes(et.data||[]);
       setLoading(false);
     }
     fetchAll();
   },[]);
+
+  const getEventTypeColor=(name)=>{ const t=eventTypes.find(t=>t.name===name); return t?t.color:TEXT3; };
 
   const prevContent=()=>{ if(contentMonth===0){setContentMonth(11);setContentYear(y=>y-1);}else setContentMonth(m=>m-1); };
   const nextContent=()=>{ if(contentMonth===11){setContentMonth(0);setContentYear(y=>y+1);}else setContentMonth(m=>m+1); };
@@ -355,8 +422,8 @@ function MainApp({currentUser,onLogout}){
   const getDayPosts=(day)=>{ const ds=dateStr(contentYear,contentMonth,day); return posts.filter(p=>p.post_date===ds); };
   const isToday=(y,m,day)=>day===today.getDate()&&m===today.getMonth()&&y===today.getFullYear();
 
-  const openAddEvent=(day)=>{ const ds=dateStr(eventsYear,eventsMonth,day); setEventModal({day}); setEventForm({title:"",event_date:ds,end_date:"",location:"",description:"",event_type:"Tradeshow",assignee_id:""}); };
-  const openEditEvent=(ev)=>{ setEventModal({editId:ev.id}); setEventForm({title:ev.title,event_date:ev.event_date,end_date:ev.end_date||"",location:ev.location||"",description:ev.description||"",event_type:ev.event_type||"Tradeshow",assignee_id:ev.assignee_id||""}); };
+  const openAddEvent=(day)=>{ const ds=dateStr(eventsYear,eventsMonth,day); const defaultType=eventTypes[0]?.name||""; setEventModal({day}); setEventForm({title:"",event_date:ds,end_date:"",location:"",description:"",event_type:defaultType,assignee_id:""}); };
+  const openEditEvent=(ev)=>{ setEventModal({editId:ev.id}); setEventForm({title:ev.title,event_date:ev.event_date,end_date:ev.end_date||"",location:ev.location||"",description:ev.description||"",event_type:ev.event_type||"",assignee_id:ev.assignee_id||""}); };
   const saveEvent=async()=>{
     const payload={...eventForm,assignee_id:eventForm.assignee_id||null,end_date:eventForm.end_date||null};
     if(eventModal.editId){
@@ -427,7 +494,6 @@ function MainApp({currentUser,onLogout}){
     <div style={{minHeight:"100vh",background:BG,fontFamily:"'DM Sans',sans-serif",color:TEXT1}}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:wght@700&display=swap" rel="stylesheet"/>
 
-      {/* Header */}
       <div style={{borderBottom:`1px solid ${BORDER}`,padding:"0 40px",display:"flex",alignItems:"center",justifyContent:"space-between",background:SURFACE,position:"sticky",top:0,zIndex:20,height:56}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <div style={{width:3,height:22,background:ORANGE,borderRadius:2}}/>
@@ -505,9 +571,17 @@ function MainApp({currentUser,onLogout}){
       {/* EVENTS CALENDAR */}
       {tab==="events"&&(
         <CalendarShell currentMonth={eventsMonth} currentYear={eventsYear} onPrev={prevEvents} onNext={nextEvents}
-          legend={Object.entries(EVENT_TYPE_COLORS).map(([t,c])=>(
-            <span key={t} style={{fontSize:11,color:c,border:`1px solid ${c}44`,borderRadius:4,padding:"2px 8px"}}>{t}</span>
-          ))}
+          legend={
+            <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+              {eventTypes.map(t=>(
+                <span key={t.id} style={{fontSize:11,color:t.color,border:`1px solid ${t.color}44`,borderRadius:4,padding:"2px 8px"}}>{t.name}</span>
+              ))}
+              <button onClick={()=>setShowTypeManager(true)} style={{background:"none",border:`1px solid ${BORDER}`,color:TEXT3,borderRadius:4,padding:"2px 10px",cursor:"pointer",fontSize:11,fontFamily:"'DM Sans',sans-serif"}}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor=ORANGE;e.currentTarget.style.color=ORANGE;}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor=BORDER;e.currentTarget.style.color=TEXT3;}}
+              >+ Manage Tags</button>
+            </div>
+          }
         >
           {(day,i)=>{
             const dayEvents=day?getDayEvents(day):[];
@@ -526,7 +600,7 @@ function MainApp({currentUser,onLogout}){
                     </div>
                     <div style={{display:"flex",flexDirection:"column",gap:3}}>
                       {dayEvents.slice(0,3).map(ev=>{
-                        const c=EVENT_TYPE_COLORS[ev.event_type]||TEXT3;
+                        const c=getEventTypeColor(ev.event_type);
                         const assignee=ev.assignee_id?members.find(m=>m.id===ev.assignee_id):null;
                         return(
                           <div key={ev.id} onClick={()=>openEditEvent(ev)}
@@ -726,7 +800,13 @@ function MainApp({currentUser,onLogout}){
           <input value={eventForm.title} onChange={e=>setEventForm(f=>({...f,title:e.target.value}))} placeholder="e.g. SHOT Show 2026" style={{...inputStyle,marginBottom:14}}/>
           <FL>Event Type</FL>
           <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:14}}>
-            {EVENT_TYPES.map(t=>{ const c=EVENT_TYPE_COLORS[t]||TEXT3; return<button key={t} onClick={()=>setEventForm(f=>({...f,event_type:t}))} style={{background:eventForm.event_type===t?`${c}22`:"transparent",border:`1px solid ${eventForm.event_type===t?c:BORDER}`,color:eventForm.event_type===t?c:TEXT3,borderRadius:5,padding:"4px 10px",fontSize:12,cursor:"pointer"}}>{t}</button>; })}
+            {eventTypes.map(t=>{ const c=t.color; return(
+              <button key={t.id} onClick={()=>setEventForm(f=>({...f,event_type:t.name}))} style={{background:eventForm.event_type===t.name?`${c}22`:"transparent",border:`1px solid ${eventForm.event_type===t.name?c:BORDER}`,color:eventForm.event_type===t.name?c:TEXT3,borderRadius:5,padding:"4px 10px",fontSize:12,cursor:"pointer"}}>{t.name}</button>
+            ); })}
+            <button onClick={()=>{ setEventModal(null); setShowTypeManager(true); }} style={{background:"none",border:`1px dashed ${BORDER2}`,color:TEXT3,borderRadius:5,padding:"4px 10px",fontSize:12,cursor:"pointer"}}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor=ORANGE;e.currentTarget.style.color=ORANGE;}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor=BORDER2;e.currentTarget.style.color=TEXT3;}}
+            >+ New Type</button>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
             <div><FL>Start Date</FL><input type="date" value={eventForm.event_date} onChange={e=>setEventForm(f=>({...f,event_date:e.target.value}))} style={{...inputStyle,colorScheme:"dark"}}/></div>
@@ -812,6 +892,11 @@ function MainApp({currentUser,onLogout}){
           )}
           <MA onCancel={()=>setItemModal(null)} onSave={saveItem} onDelete={itemModal.editId?deleteItem:null} saveLabel={itemModal.editId?"Save Changes":`Create ${listConfig[itemModal.type].label.slice(0,-1)}`}/>
         </ModalOverlay>
+      )}
+
+      {/* EVENT TYPE MANAGER */}
+      {showTypeManager&&(
+        <EventTypeManager eventTypes={eventTypes} setEventTypes={setEventTypes} onClose={()=>setShowTypeManager(false)}/>
       )}
     </div>
   );
