@@ -405,8 +405,8 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
                           <button onClick={()=>onAddItem(day)} style={{background:"none",border:`1px solid ${BORDER}`,color:TEXT3,borderRadius:3,width:16,height:16,cursor:"pointer",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>+</button>
                         </div>
                         <div style={{display:"flex",flexDirection:"column",gap:2}}>
-                          {dayItems.slice(0,isMobile?2:3).map(item=>renderDayItem(item))}
-                          {dayItems.length>(isMobile?2:3)&&<div style={{fontSize:9,color:TEXT3}}>+{dayItems.length-(isMobile?2:3)}</div>}
+                          {dayItems.slice(0,3).map(item=>renderDayItem(item))}
+                         {dayItems.length>3&&<div style={{fontSize:9,color:TEXT3}}>+{dayItems.length-3}</div>}
                         </div>
                         {isDrag&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:"#00000066",fontSize:9,color:ORANGE,pointerEvents:"none"}}>Drop</div>}
                       </>
