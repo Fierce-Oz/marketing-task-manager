@@ -396,7 +396,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
                     onDragOver={day?(e)=>{e.preventDefault();setDragOver(i);}:undefined}
                     onDragLeave={day?()=>setDragOver(null):undefined}
                     onDrop={day?(e)=>handleCalDrop(e,day):undefined}
-                    style={{minHeight:isMobile?70:100,background:day?(isDrag?"#1a2218":SURFACE):"transparent",border:isDrag?`1px dashed ${ORANGE}`:day?`1px solid ${BORDER}`:"none",borderRadius:5,padding:day?"6px":0,position:"relative",overflow:"hidden"}}
+                    style={{minHeight:isMobile?90:110,background:day?(isDrag?"#1a2218":SURFACE):"transparent",border:isDrag?`1px dashed ${ORANGE}`:day?`1px solid ${BORDER}`:"none",borderRadius:5,padding:day?"6px":0,position:"relative",overflow:"hidden"}}
                   >
                     {day&&(
                       <>
