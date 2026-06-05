@@ -32,7 +32,6 @@ const PRIORITY_COLORS = {
 const MEMBER_COLORS = ["#d4420a","#6b8ccc","#4a9e60","#c47a30","#a07acc","#e85520","#3a9acc","#c43060"];
 const COLOR_OPTIONS = ["#d4420a","#e85520","#c47a30","#4a9e60","#6b8ccc","#a07acc","#3a9acc","#c43060","#c43030","#5a5d63","#888","#2a9acc"];
 
-// ── Channel tags ──────────────────────────────────────────────────────────────
 const CHANNELS = ["Email","SMS","Social","Programmatic","Website","Influencer","Dealer","Other"];
 const CHANNEL_COLORS = {
   Email:"#6b8ccc", SMS:"#4a9e60", Social:"#E1306C", Programmatic:"#a07acc",
@@ -86,11 +85,10 @@ function Avatar({name,color,size=28}){
   return <div style={{width:size,height:size,borderRadius:"50%",background:color+"22",border:`1px solid ${color}55`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.38,color,fontWeight:600,flexShrink:0,fontFamily:"'DM Sans',sans-serif"}}>{initials}</div>;
 }
 
-// ── Progress bar component (for campaigns/programs) ───────────────────────────
-function ProgressBar({value,color=ORANGE,height=4}){
+function ProgressBar({value,height=4}){
   return(
     <div style={{height,background:SURFACE2,borderRadius:height,overflow:"hidden"}}>
-      <div style={{height:"100%",width:`${Math.min(100,Math.max(0,value))}%`,background:value===100?"#4a9e60":color,borderRadius:height,transition:"width 0.3s"}}/>
+      <div style={{height:"100%",width:`${Math.min(100,Math.max(0,value))}%`,background:value===100?"#4a9e60":ORANGE,borderRadius:height,transition:"width 0.3s"}}/>
     </div>
   );
 }
@@ -122,7 +120,7 @@ function SubtaskPanel({taskId}){
         {subtasks.length===0&&<div style={{fontSize:13,color:TEXT3,padding:"6px 0"}}>No steps yet</div>}
       </div>
       <div style={{display:"flex",gap:8}}>
-        <input value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter") addSubtask();}} placeholder="Add a step..." style={{...inputStyle,flex:1,fontSize:14}}/>
+        <input value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter") addSubtask();}} placeholder="Add a step..." style={{...inputStyle,flex:1}}/>
         <button onClick={addSubtask} style={{background:SURFACE2,border:`1px solid ${BORDER}`,color:TEXT2,borderRadius:8,padding:"11px 16px",cursor:"pointer",fontSize:14,fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap"}}>+ Add</button>
       </div>
     </div>
@@ -257,8 +255,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
   const [showProfile,setShowProfile]=useState(false);
   const [menuOpen,setMenuOpen]=useState(false);
 
-  // calendar filter
-  const [calChannelFilter,setCalChannelFilter]=useState("All");
+  const [eventsChannelFilter,setEventsChannelFilter]=useState("All");
 
   const [contentYear,setContentYear]=useState(today.getFullYear());
   const [contentMonth,setContentMonth]=useState(today.getMonth());
@@ -297,7 +294,6 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
     fetchAll();
   },[]);
 
-  // ── Progress helpers ──────────────────────────────────────────────────────
   const getCampaignProgress=(campaignId)=>{
     const linked=tasks.filter(t=>t.campaign_id===campaignId);
     if(!linked.length) return null;
@@ -305,16 +301,10 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
     return{done,total:linked.length,pct:Math.round((done/linked.length)*100)};
   };
   const getProgramProgress=(programId)=>{
-    const linkedCampaigns=campaigns.filter(c=>c.program_id===programId);
-    const linkedTasks=tasks.filter(t=>{
-      if(t.campaign_id){ const camp=campaigns.find(c=>c.id===t.campaign_id); return camp&&camp.program_id===programId; }
-      return false;
-    });
-    if(!linkedTasks.length&&!linkedCampaigns.length) return null;
-    const allTasks=linkedTasks.length?linkedTasks:[];
-    if(!allTasks.length) return null;
-    const done=allTasks.filter(t=>t.status==="Complete").length;
-    return{done,total:allTasks.length,pct:Math.round((done/allTasks.length)*100)};
+    const linkedTasks=tasks.filter(t=>{ if(t.campaign_id){ const camp=campaigns.find(c=>c.id===t.campaign_id); return camp&&camp.program_id===programId; } return false; });
+    if(!linkedTasks.length) return null;
+    const done=linkedTasks.filter(t=>t.status==="Complete").length;
+    return{done,total:linkedTasks.length,pct:Math.round((done/linkedTasks.length)*100)};
   };
 
   const getEventTypeColor=(name)=>{ const t=eventTypes.find(t=>t.name===name); return t?t.color:TEXT3; };
@@ -341,14 +331,16 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
       setPosts(p=>[...p,data]); setPostModal({day,ds,editId:data.id}); setPostForm({caption:"",platform:"Instagram",image_url:url,campaign_id:"",task_id:""});
     }
   };
-
-  // ── Calendar day data ─────────────────────────────────────────────────────
   const getDayPosts=(day)=>{ const ds=mkDate(contentYear,contentMonth,day); return posts.filter(p=>p.post_date===ds); };
-  const getDayTasks=(day)=>{
-    const ds=mkDate(contentYear,contentMonth,day);
-    return tasks.filter(t=>t.due_date===ds&&(calChannelFilter==="All"||t.channel===calChannelFilter));
-  };
   const isToday=(y,m,day)=>day===today.getDate()&&m===today.getMonth()&&y===today.getFullYear();
+
+  // Events calendar — includes both events AND task due dates
+  const getDayEventsAndTasks=(day)=>{
+    const ds=mkDate(eventsYear,eventsMonth,day);
+    const dayEvents=events.filter(ev=>{ if(ev.event_date===ds) return true; if(ev.end_date&&ev.event_date<=ds&&ev.end_date>=ds) return true; return false; }).map(ev=>({...ev,_type:"event"}));
+    const dayTasks=tasks.filter(t=>t.due_date===ds&&(eventsChannelFilter==="All"||t.channel===eventsChannelFilter)).map(t=>({...t,_type:"task"}));
+    return [...dayEvents,...dayTasks];
+  };
 
   const openAddEvent=(day)=>{ const ds=mkDate(eventsYear,eventsMonth,day); const defaultType=eventTypes[0]?.name||""; setEventModal({day}); setEventForm({title:"",event_date:ds,end_date:"",location:"",description:"",event_type:defaultType,assignee_id:""}); };
   const openEditEvent=(ev)=>{ setEventModal({editId:ev.id}); setEventForm({title:ev.title,event_date:ev.event_date,end_date:ev.end_date||"",location:ev.location||"",description:ev.description||"",event_type:ev.event_type||"",assignee_id:ev.assignee_id||""}); };
@@ -359,7 +351,6 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
     setEventModal(null);
   };
   const deleteEvent=async(id)=>{ await supabase.from("events").delete().eq("id",id); setEvents(e=>e.filter(ev=>ev.id!==id)); setEventModal(null); };
-  const getDayEvents=(day)=>{ const ds=mkDate(eventsYear,eventsMonth,day); return events.filter(ev=>{ if(ev.event_date===ds) return true; if(ev.end_date&&ev.event_date<=ds&&ev.end_date>=ds) return true; return false; }); };
 
   const listConfig={ programs:{label:"Programs",data:programs,setData:setPrograms,table:"programs"}, campaigns:{label:"Campaigns",data:campaigns,setData:setCampaigns,table:"campaigns"}, tasks:{label:"Tasks",data:tasks,setData:setTasks,table:"tasks"} };
   const openNewItem=()=>{ const defaults={ programs:{name:"",status:"Not Started",description:""}, campaigns:{name:"",status:"Not Started",priority:"Medium",program_id:"",description:""}, tasks:{name:"",status:"Not Started",priority:"Medium",campaign_id:"",due_date:"",description:"",assignee_id:"",channel:""} }; setItemModal({type:activeList}); setItemForm(defaults[activeList]); };
@@ -378,7 +369,6 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
     setItemModal(null);
   };
   const deleteItem=async()=>{ const{table,setData,data}=listConfig[itemModal.type]; await supabase.from(table).delete().eq("id",itemModal.editId); setData(data.filter(i=>i.id!==itemModal.editId)); setItemModal(null); };
-
   const filteredData=(type)=>{
     const{data}=listConfig[type];
     let result=data;
@@ -386,7 +376,6 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
     if(type==="tasks"&&channelFilter!=="All") result=result.filter(i=>i.channel===channelFilter);
     return result;
   };
-
   const memberStats=members.map(m=>{ const myTasks=tasks.filter(t=>t.assignee_id===m.id); const byStatus={}; Object.keys(STATUS_COLORS).forEach(s=>{ byStatus[s]=myTasks.filter(t=>t.status===s).length; }); return{...m,tasks:myTasks,byStatus,total:myTasks.length}; });
 
   if(loading) return <div style={{minHeight:"100vh",background:BG,display:"flex",alignItems:"center",justifyContent:"center",color:TEXT3,fontFamily:"'DM Sans',sans-serif"}}>Loading...</div>;
@@ -394,7 +383,6 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
   const tabs=[["content","Calendar"],["events","Events"],["tasks","Tasks"],["team","Team"]];
   const pad=isMobile?"16px":"32px 40px";
 
-  // ── Calendar renderer ─────────────────────────────────────────────────────
   const renderCalendar=(year,month,onPrev,onNext,getDayItems,renderDayItem,onAddItem,extraHeader)=>{
     const daysInMonth=getDaysInMonth(year,month);
     const firstDay=getFirstDay(year,month);
@@ -448,46 +436,16 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
     );
   };
 
-  // ── Combined content calendar day items ───────────────────────────────────
-  const getContentDayItems=(day)=>{
-    const postItems=getDayPosts(day).map(p=>({...p,_type:"post"}));
-    const taskItems=getDayTasks(day).map(t=>({...t,_type:"task"}));
-    return [...postItems,...taskItems];
-  };
-
-  const renderContentDayItem=(item)=>{
-    if(item._type==="post"){
-      const linked=item.campaign_id?campaigns.find(c=>c.id===item.campaign_id):null;
-      return(
-        <div key={`post-${item.id}`} onClick={()=>openEditPost(item)} style={{display:"flex",alignItems:"center",gap:3,background:SURFACE2,borderRadius:3,padding:"2px 4px",cursor:"pointer",borderLeft:`2px solid ${PLATFORM_COLORS[item.platform]}`}}>
-          {item.image_url&&<img src={item.image_url} alt="" style={{width:14,height:14,objectFit:"cover",borderRadius:2,flexShrink:0}}/>}
-          <span style={{fontSize:9,color:TEXT3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{item.caption||"Post"}</span>
-          {linked&&<span style={{fontSize:8,color:ORANGE,flexShrink:0}}>●</span>}
-        </div>
-      );
-    }
-    // task due date chip
-    const assignee=item.assignee_id?members.find(m=>m.id===item.assignee_id):null;
-    const chColor=item.channel?CHANNEL_COLORS[item.channel]||TEXT3:TEXT3;
-    return(
-      <div key={`task-${item.id}`} onClick={()=>openEditItem("tasks",item)} style={{display:"flex",alignItems:"center",gap:3,background:SURFACE2,borderRadius:3,padding:"2px 4px",cursor:"pointer",borderLeft:`2px solid ${chColor}`}}>
-        <span style={{fontSize:9,color:TEXT2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>📌 {item.name}</span>
-        {assignee&&<div style={{width:10,height:10,borderRadius:"50%",background:assignee.color,flexShrink:0}}/>}
-      </div>
-    );
-  };
-
   return(
     <div style={{minHeight:"100vh",background:BG,fontFamily:"'DM Sans',sans-serif",color:TEXT1,paddingBottom:isMobile?70:0}}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:wght@700&display=swap" rel="stylesheet"/>
 
-      {/* Header */}
       <div style={{borderBottom:`1px solid ${BORDER}`,padding:isMobile?"0 16px":"0 40px",display:"flex",alignItems:"center",justifyContent:"space-between",background:SURFACE,position:"sticky",top:0,zIndex:20,height:52}}>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           <div style={{width:3,height:20,background:ORANGE,borderRadius:2}}/>
           <span style={{fontFamily:"'Playfair Display',serif",fontSize:isMobile?14:17,color:TEXT1}}>{isMobile?"Task Manager":<>Sales & Marketing <span style={{color:ORANGE}}>Task Manager</span></>}</span>
         </div>
-        {!isMobile&&<div style={{display:"flex"}}>{tabs.map(([id,label])=><button key={id} onClick={()=>setTab(id)} style={{background:"none",border:"none",borderBottom:tab===id?`2px solid ${ORANGE}`:"2px solid transparent",color:tab===id?TEXT1:TEXT3,padding:"0 18px",cursor:"pointer",fontSize:13,fontFamily:"'DM Sans',sans-serif",fontWeight:tab===id?500:400,height:52}}>{id==="content"?"Content Calendar":label}</button>)}</div>}
+        {!isMobile&&<div style={{display:"flex"}}>{tabs.map(([id,label])=><button key={id} onClick={()=>setTab(id)} style={{background:"none",border:"none",borderBottom:tab===id?`2px solid ${ORANGE}`:"2px solid transparent",color:tab===id?TEXT1:TEXT3,padding:"0 18px",cursor:"pointer",fontSize:13,fontFamily:"'DM Sans',sans-serif",fontWeight:tab===id?500:400,height:52}}>{id==="content"?"Content Calendar":id==="events"?"Events & Deadlines":label}</button>)}</div>}
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           <button onClick={()=>setShowProfile(true)} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",cursor:"pointer",padding:0}}>
             <Avatar name={currentUser.name} color={currentUser.color} size={26}/>
@@ -498,10 +456,9 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
         </div>
       </div>
 
-      {/* Mobile menu */}
       {isMobile&&menuOpen&&(
         <div style={{position:"fixed",top:52,right:0,left:0,background:SURFACE,borderBottom:`1px solid ${BORDER}`,zIndex:19,padding:"8px 0"}}>
-          {[["content","Content Calendar"],["events","Events"],["tasks","Task Manager"],["team","Team"]].map(([id,label])=>(
+          {[["content","Content Calendar"],["events","Events & Deadlines"],["tasks","Task Manager"],["team","Team"]].map(([id,label])=>(
             <button key={id} onClick={()=>{setTab(id);setMenuOpen(false);}} style={{width:"100%",background:tab===id?SURFACE2:"transparent",border:"none",borderLeft:tab===id?`3px solid ${ORANGE}`:"3px solid transparent",color:tab===id?TEXT1:TEXT2,padding:"14px 20px",cursor:"pointer",fontSize:15,fontFamily:"'DM Sans',sans-serif",textAlign:"left",display:"block"}}>{label}</button>
           ))}
           <div style={{borderTop:`1px solid ${BORDER}`,margin:"8px 0"}}/>
@@ -509,10 +466,10 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
         </div>
       )}
 
-      {/* CONTENT CALENDAR */}
+      {/* CONTENT CALENDAR — posts only */}
       {tab==="content"&&renderCalendar(
         contentYear,contentMonth,prevContent,nextContent,
-         getDayPosts,
+        getDayPosts,
         (post)=>{
           const linked=post.campaign_id?campaigns.find(c=>c.id===post.campaign_id):null;
           return(
@@ -523,23 +480,45 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
             </div>
           );
         },
-        openAddPost,
-        // channel filter bar
-  
+        openAddPost
       )}
 
-      {/* EVENTS CALENDAR */}
-      {tab==="events"&&(
-        <div>
-          {renderCalendar(eventsYear,eventsMonth,prevEvents,nextEvents,getDayEvents,
-            (ev)=>{
-              const c=getEventTypeColor(ev.event_type);
-              return <div key={ev.id} onClick={()=>openEditEvent(ev)} style={{display:"flex",alignItems:"center",gap:3,background:SURFACE2,borderRadius:3,padding:"2px 4px",cursor:"pointer",borderLeft:`2px solid ${c}`}}><span style={{fontSize:9,color:TEXT2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{ev.title}</span></div>;
-            },openAddEvent
-          )}
-          <div style={{padding:isMobile?"0 16px 16px":"0 40px 16px",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+      {/* EVENTS & DEADLINES CALENDAR — events + task due dates */}
+      {tab==="events"&&renderCalendar(
+        eventsYear,eventsMonth,prevEvents,nextEvents,
+        getDayEventsAndTasks,
+        (item)=>{
+          if(item._type==="task"){
+            const chColor=item.channel?CHANNEL_COLORS[item.channel]||TEXT3:TEXT3;
+            const assignee=item.assignee_id?members.find(m=>m.id===item.assignee_id):null;
+            return(
+              <div key={`task-${item.id}`} onClick={()=>openEditItem("tasks",item)} style={{display:"flex",alignItems:"center",gap:3,background:SURFACE2,borderRadius:3,padding:"2px 4px",cursor:"pointer",borderLeft:`2px solid ${chColor}`}}>
+                <span style={{fontSize:9,color:TEXT2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>📌 {item.name}</span>
+                {assignee&&<div style={{width:8,height:8,borderRadius:"50%",background:assignee.color,flexShrink:0}}/>}
+              </div>
+            );
+          }
+          const c=getEventTypeColor(item.event_type);
+          return(
+            <div key={`event-${item.id}`} onClick={()=>openEditEvent(item)} style={{display:"flex",alignItems:"center",gap:3,background:SURFACE2,borderRadius:3,padding:"2px 4px",cursor:"pointer",borderLeft:`2px solid ${c}`}}>
+              <span style={{fontSize:9,color:TEXT2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{item.title}</span>
+            </div>
+          );
+        },
+        openAddEvent,
+        // Channel filter for task deadlines
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",flex:1}}>
             {eventTypes.map(t=><span key={t.id} style={{fontSize:11,color:t.color,border:`1px solid ${t.color}44`,borderRadius:4,padding:"2px 8px"}}>{t.name}</span>)}
-            <button onClick={()=>setShowTypeManager(true)} style={{background:"none",border:`1px solid ${BORDER}`,color:TEXT3,borderRadius:4,padding:"2px 10px",cursor:"pointer",fontSize:11,fontFamily:"'DM Sans',sans-serif"}}>+ Manage Tags</button>
+            <button onClick={()=>setShowTypeManager(true)} style={{background:"none",border:`1px solid ${BORDER}`,color:TEXT3,borderRadius:4,padding:"2px 10px",cursor:"pointer",fontSize:11,fontFamily:"'DM Sans',sans-serif"}}>+ Tags</button>
+          </div>
+          <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}>
+            <span style={{fontSize:10,color:TEXT3}}>Tasks:</span>
+            {["All",...CHANNELS].map(ch=>(
+              <button key={ch} onClick={()=>setEventsChannelFilter(ch)} style={{fontSize:10,color:eventsChannelFilter===ch?(ch==="All"?TEXT1:CHANNEL_COLORS[ch]||TEXT1):TEXT3,background:eventsChannelFilter===ch?SURFACE2:"transparent",border:`1px solid ${eventsChannelFilter===ch?(ch==="All"?BORDER2:CHANNEL_COLORS[ch]||BORDER2):BORDER}`,borderRadius:4,padding:"2px 7px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+                {ch}
+              </button>
+            ))}
           </div>
         </div>
       )}
@@ -547,7 +526,6 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
       {/* TASK MANAGER */}
       {tab==="tasks"&&(
         <div style={{padding:pad}}>
-          {/* List switcher */}
           <div style={{display:"flex",gap:4,marginBottom:16,background:SURFACE,borderRadius:8,padding:4,border:`1px solid ${BORDER}`}}>
             {Object.entries(listConfig).map(([key,{label}])=>(
               <button key={key} onClick={()=>{setActiveList(key);setSearchQ("");setChannelFilter("All");}} style={{flex:1,background:activeList===key?SURFACE2:"transparent",border:activeList===key?`1px solid ${BORDER2}`:"1px solid transparent",color:activeList===key?TEXT1:TEXT3,borderRadius:6,padding:"8px 4px",cursor:"pointer",fontSize:isMobile?12:13,fontFamily:"'DM Sans',sans-serif",fontWeight:activeList===key?500:400,textAlign:"center"}}>
@@ -555,14 +533,10 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
               </button>
             ))}
           </div>
-
-          {/* Search + channel filter + add */}
-          <div style={{display:"flex",gap:8,marginBottom:activeList==="tasks"?10:16,flexWrap:"wrap"}}>
+          <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
             <input value={searchQ} onChange={e=>setSearchQ(e.target.value)} placeholder="Search..." style={{...inputStyle,flex:1,minWidth:120}}/>
             <OrangeBtn onClick={openNewItem} style={{whiteSpace:"nowrap",padding:"10px 14px",fontSize:13}}>+ New</OrangeBtn>
           </div>
-
-          {/* Channel filter — tasks only */}
           {activeList==="tasks"&&(
             <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:16,alignItems:"center"}}>
               <span style={{fontSize:11,color:TEXT3}}>Channel:</span>
@@ -573,8 +547,6 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
               ))}
             </div>
           )}
-
-          {/* Items */}
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
             {filteredData(activeList).length===0&&<div style={{textAlign:"center",padding:"40px 0",color:TEXT3,fontSize:14}}>No {listConfig[activeList].label.toLowerCase()} yet</div>}
             {filteredData(activeList).map(item=>{
@@ -584,10 +556,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
               const linkedCampaign=item.campaign_id?campaigns.find(c=>c.id===item.campaign_id):null;
               const assignee=item.assignee_id?members.find(m=>m.id===item.assignee_id):null;
               const chColor=item.channel?CHANNEL_COLORS[item.channel]||TEXT3:null;
-
-              // Progress for programs and campaigns
               const progress=activeList==="campaigns"?getCampaignProgress(item.id):activeList==="programs"?getProgramProgress(item.id):null;
-
               return(
                 <div key={item.id} onClick={()=>openEditItem(activeList,item)}
                   style={{padding:"14px 16px",background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:10,cursor:"pointer",borderLeft:chColor?`3px solid ${chColor}`:`3px solid transparent`}}
@@ -604,7 +573,6 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
                     {activeList==="tasks"&&assignee&&<div style={{display:"flex",alignItems:"center",gap:5}}><Avatar name={assignee.name} color={assignee.color} size={16}/><span style={{fontSize:11,color:TEXT2}}>{assignee.name.split(" ")[0]}</span></div>}
                     {activeList==="tasks"&&item.due_date&&<span style={{fontSize:11,color:TEXT3}}>Due {item.due_date}</span>}
                   </div>
-                  {/* Rolled-up progress bar for campaigns and programs */}
                   {progress&&(
                     <div>
                       <ProgressBar value={progress.pct}/>
@@ -757,12 +725,11 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
         </ModalOverlay>
       )}
 
-      {/* Mobile bottom nav */}
       {isMobile&&(
         <div style={{position:"fixed",bottom:0,left:0,right:0,background:SURFACE,borderTop:`1px solid ${BORDER}`,display:"flex",zIndex:20}}>
           {tabs.map(([id,label])=>(
             <button key={id} onClick={()=>setTab(id)} style={{flex:1,background:"none",border:"none",borderTop:tab===id?`2px solid ${ORANGE}`:"2px solid transparent",color:tab===id?ORANGE:TEXT3,padding:"10px 4px 8px",cursor:"pointer",fontSize:11,fontFamily:"'DM Sans',sans-serif",fontWeight:tab===id?500:400,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-              <span style={{fontSize:18}}>{id==="content"?"📅":id==="events"?"🎪":id==="tasks"?"✅":"👥"}</span>
+              <span style={{fontSize:18}}>{id==="content"?"📅":id==="events"?"🗓️":id==="tasks"?"✅":"👥"}</span>
               {label}
             </button>
           ))}
