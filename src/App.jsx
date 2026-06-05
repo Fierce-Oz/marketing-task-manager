@@ -512,8 +512,17 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
       {/* CONTENT CALENDAR */}
       {tab==="content"&&renderCalendar(
         contentYear,contentMonth,prevContent,nextContent,
-        getContentDayItems,
-        renderContentDayItem,
+         getDayPosts,
+        (post)=>{
+          const linked=post.campaign_id?campaigns.find(c=>c.id===post.campaign_id):null;
+          return(
+            <div key={`post-${post.id}`} onClick={()=>openEditPost(post)} style={{display:"flex",alignItems:"center",gap:3,background:SURFACE2,borderRadius:3,padding:"2px 4px",cursor:"pointer",borderLeft:`2px solid ${PLATFORM_COLORS[post.platform]}`}}>
+              {post.image_url&&<img src={post.image_url} alt="" style={{width:14,height:14,objectFit:"cover",borderRadius:2,flexShrink:0}}/>}
+              <span style={{fontSize:9,color:TEXT3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{post.caption||"Post"}</span>
+              {linked&&<span style={{fontSize:8,color:ORANGE,flexShrink:0}}>●</span>}
+            </div>
+          );
+        },
         openAddPost,
         // channel filter bar
         <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
