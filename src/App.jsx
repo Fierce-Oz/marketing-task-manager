@@ -525,14 +525,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
         },
         openAddPost,
         // channel filter bar
-        <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
-          <span style={{fontSize:11,color:TEXT3,marginRight:4}}>Filter:</span>
-          {["All",...CHANNELS].map(ch=>(
-            <button key={ch} onClick={()=>setCalChannelFilter(ch)} style={{fontSize:11,color:calChannelFilter===ch?(ch==="All"?TEXT1:CHANNEL_COLORS[ch]||TEXT1):TEXT3,background:calChannelFilter===ch?SURFACE2:"transparent",border:`1px solid ${calChannelFilter===ch?(ch==="All"?BORDER2:CHANNEL_COLORS[ch]||BORDER2):BORDER}`,borderRadius:4,padding:"3px 9px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
-              {ch}
-            </button>
-          ))}
-        </div>
+  
       )}
 
       {/* EVENTS CALENDAR */}
