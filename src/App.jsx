@@ -256,7 +256,6 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
   const [menuOpen,setMenuOpen]=useState(false);
 
   const [eventsChannelFilter,setEventsChannelFilter]=useState("All");
-
   const [contentYear,setContentYear]=useState(today.getFullYear());
   const [contentMonth,setContentMonth]=useState(today.getMonth());
   const [eventsYear,setEventsYear]=useState(today.getFullYear());
@@ -271,6 +270,8 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
   const [eventForm,setEventForm]=useState({title:"",event_date:"",end_date:"",location:"",description:"",event_type:"",assignee_id:""});
 
   const [activeList,setActiveList]=useState("tasks");
+  // "active" = not complete, "complete" = done
+  const [taskView,setTaskView]=useState("active");
   const [channelFilter,setChannelFilter]=useState("All");
   const [itemModal,setItemModal]=useState(null);
   const [itemForm,setItemForm]=useState({});
@@ -334,7 +335,6 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
   const getDayPosts=(day)=>{ const ds=mkDate(contentYear,contentMonth,day); return posts.filter(p=>p.post_date===ds); };
   const isToday=(y,m,day)=>day===today.getDate()&&m===today.getMonth()&&y===today.getFullYear();
 
-  // Events calendar — includes both events AND task due dates
   const getDayEventsAndTasks=(day)=>{
     const ds=mkDate(eventsYear,eventsMonth,day);
     const dayEvents=events.filter(ev=>{ if(ev.event_date===ds) return true; if(ev.end_date&&ev.event_date<=ds&&ev.end_date>=ds) return true; return false; }).map(ev=>({...ev,_type:"event"}));
@@ -369,13 +369,21 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
     setItemModal(null);
   };
   const deleteItem=async()=>{ const{table,setData,data}=listConfig[itemModal.type]; await supabase.from(table).delete().eq("id",itemModal.editId); setData(data.filter(i=>i.id!==itemModal.editId)); setItemModal(null); };
+
   const filteredData=(type)=>{
     const{data}=listConfig[type];
     let result=data;
+    // For tasks: split by complete/active view
+    if(type==="tasks"){
+      result = taskView==="complete"
+        ? result.filter(i=>i.status==="Complete")
+        : result.filter(i=>i.status!=="Complete");
+    }
     if(searchQ) result=result.filter(i=>i.name.toLowerCase().includes(searchQ.toLowerCase()));
     if(type==="tasks"&&channelFilter!=="All") result=result.filter(i=>i.channel===channelFilter);
     return result;
   };
+
   const memberStats=members.map(m=>{ const myTasks=tasks.filter(t=>t.assignee_id===m.id); const byStatus={}; Object.keys(STATUS_COLORS).forEach(s=>{ byStatus[s]=myTasks.filter(t=>t.status===s).length; }); return{...m,tasks:myTasks,byStatus,total:myTasks.length}; });
 
   if(loading) return <div style={{minHeight:"100vh",background:BG,display:"flex",alignItems:"center",justifyContent:"center",color:TEXT3,fontFamily:"'DM Sans',sans-serif"}}>Loading...</div>;
@@ -436,6 +444,9 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
     );
   };
 
+  const activeTasks=tasks.filter(t=>t.status!=="Complete");
+  const completedTasks=tasks.filter(t=>t.status==="Complete");
+
   return(
     <div style={{minHeight:"100vh",background:BG,fontFamily:"'DM Sans',sans-serif",color:TEXT1,paddingBottom:isMobile?70:0}}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:wght@700&display=swap" rel="stylesheet"/>
@@ -466,7 +477,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
         </div>
       )}
 
-      {/* CONTENT CALENDAR — posts only */}
+      {/* CONTENT CALENDAR */}
       {tab==="content"&&renderCalendar(
         contentYear,contentMonth,prevContent,nextContent,
         getDayPosts,
@@ -483,7 +494,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
         openAddPost
       )}
 
-      {/* EVENTS & DEADLINES CALENDAR — events + task due dates */}
+      {/* EVENTS & DEADLINES */}
       {tab==="events"&&renderCalendar(
         eventsYear,eventsMonth,prevEvents,nextEvents,
         getDayEventsAndTasks,
@@ -506,7 +517,6 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
           );
         },
         openAddEvent,
-        // Channel filter for task deadlines
         <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
           <div style={{display:"flex",gap:6,flexWrap:"wrap",flex:1}}>
             {eventTypes.map(t=><span key={t.id} style={{fontSize:11,color:t.color,border:`1px solid ${t.color}44`,borderRadius:4,padding:"2px 8px"}}>{t.name}</span>)}
@@ -526,18 +536,35 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
       {/* TASK MANAGER */}
       {tab==="tasks"&&(
         <div style={{padding:pad}}>
+          {/* List switcher: Programs / Campaigns / Tasks */}
           <div style={{display:"flex",gap:4,marginBottom:16,background:SURFACE,borderRadius:8,padding:4,border:`1px solid ${BORDER}`}}>
             {Object.entries(listConfig).map(([key,{label}])=>(
-              <button key={key} onClick={()=>{setActiveList(key);setSearchQ("");setChannelFilter("All");}} style={{flex:1,background:activeList===key?SURFACE2:"transparent",border:activeList===key?`1px solid ${BORDER2}`:"1px solid transparent",color:activeList===key?TEXT1:TEXT3,borderRadius:6,padding:"8px 4px",cursor:"pointer",fontSize:isMobile?12:13,fontFamily:"'DM Sans',sans-serif",fontWeight:activeList===key?500:400,textAlign:"center"}}>
+              <button key={key} onClick={()=>{setActiveList(key);setSearchQ("");setChannelFilter("All");setTaskView("active");}} style={{flex:1,background:activeList===key?SURFACE2:"transparent",border:activeList===key?`1px solid ${BORDER2}`:"1px solid transparent",color:activeList===key?TEXT1:TEXT3,borderRadius:6,padding:"8px 4px",cursor:"pointer",fontSize:isMobile?12:13,fontFamily:"'DM Sans',sans-serif",fontWeight:activeList===key?500:400,textAlign:"center"}}>
                 {label} <span style={{fontSize:10,color:TEXT3}}>({listConfig[key].data.length})</span>
               </button>
             ))}
           </div>
+
+          {/* Active / Complete sub-tabs for tasks only */}
+          {activeList==="tasks"&&(
+            <div style={{display:"flex",gap:0,marginBottom:16,borderBottom:`1px solid ${BORDER}`}}>
+              <button onClick={()=>setTaskView("active")} style={{background:"none",border:"none",borderBottom:taskView==="active"?`2px solid ${ORANGE}`:"2px solid transparent",color:taskView==="active"?TEXT1:TEXT3,padding:"8px 20px",cursor:"pointer",fontSize:13,fontFamily:"'DM Sans',sans-serif",fontWeight:taskView==="active"?500:400,marginBottom:-1}}>
+                Active <span style={{fontSize:11,color:TEXT3,marginLeft:4}}>({activeTasks.length})</span>
+              </button>
+              <button onClick={()=>setTaskView("complete")} style={{background:"none",border:"none",borderBottom:taskView==="complete"?`2px solid #4a9e60`:"2px solid transparent",color:taskView==="complete"?"#4a9e60":TEXT3,padding:"8px 20px",cursor:"pointer",fontSize:13,fontFamily:"'DM Sans',sans-serif",fontWeight:taskView==="complete"?500:400,marginBottom:-1}}>
+                Complete <span style={{fontSize:11,color:TEXT3,marginLeft:4}}>({completedTasks.length})</span>
+              </button>
+            </div>
+          )}
+
+          {/* Search + add */}
           <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
             <input value={searchQ} onChange={e=>setSearchQ(e.target.value)} placeholder="Search..." style={{...inputStyle,flex:1,minWidth:120}}/>
-            <OrangeBtn onClick={openNewItem} style={{whiteSpace:"nowrap",padding:"10px 14px",fontSize:13}}>+ New</OrangeBtn>
+            {(activeList!=="tasks"||taskView==="active")&&<OrangeBtn onClick={openNewItem} style={{whiteSpace:"nowrap",padding:"10px 14px",fontSize:13}}>+ New</OrangeBtn>}
           </div>
-          {activeList==="tasks"&&(
+
+          {/* Channel filter — active tasks only */}
+          {activeList==="tasks"&&taskView==="active"&&(
             <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:16,alignItems:"center"}}>
               <span style={{fontSize:11,color:TEXT3}}>Channel:</span>
               {["All",...CHANNELS].map(ch=>(
@@ -547,8 +574,21 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
               ))}
             </div>
           )}
+
+          {/* Completed tasks header note */}
+          {activeList==="tasks"&&taskView==="complete"&&completedTasks.length>0&&(
+            <div style={{fontSize:12,color:TEXT3,marginBottom:12,display:"flex",alignItems:"center",gap:6}}>
+              <span style={{color:"#4a9e60"}}>✓</span> {completedTasks.length} task{completedTasks.length!==1?"s":""} completed
+            </div>
+          )}
+
+          {/* Items list */}
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
-            {filteredData(activeList).length===0&&<div style={{textAlign:"center",padding:"40px 0",color:TEXT3,fontSize:14}}>No {listConfig[activeList].label.toLowerCase()} yet</div>}
+            {filteredData(activeList).length===0&&(
+              <div style={{textAlign:"center",padding:"40px 0",color:TEXT3,fontSize:14}}>
+                {activeList==="tasks"&&taskView==="complete"?"No completed tasks yet":"No "+listConfig[activeList].label.toLowerCase()+" yet"}
+              </div>
+            )}
             {filteredData(activeList).map(item=>{
               const sc=STATUS_COLORS[item.status]||STATUS_COLORS["Not Started"];
               const pc=item.priority?PRIORITY_COLORS[item.priority]:null;
@@ -557,12 +597,13 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
               const assignee=item.assignee_id?members.find(m=>m.id===item.assignee_id):null;
               const chColor=item.channel?CHANNEL_COLORS[item.channel]||TEXT3:null;
               const progress=activeList==="campaigns"?getCampaignProgress(item.id):activeList==="programs"?getProgramProgress(item.id):null;
+              const isComplete=item.status==="Complete";
               return(
                 <div key={item.id} onClick={()=>openEditItem(activeList,item)}
-                  style={{padding:"14px 16px",background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:10,cursor:"pointer",borderLeft:chColor?`3px solid ${chColor}`:`3px solid transparent`}}
+                  style={{padding:"14px 16px",background:SURFACE,border:`1px solid ${isComplete?"#1a3020":BORDER}`,borderRadius:10,cursor:"pointer",borderLeft:chColor?`3px solid ${chColor}`:isComplete?`3px solid #4a9e60`:`3px solid transparent`,opacity:isComplete?0.75:1}}
                 >
                   <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:8,gap:8}}>
-                    <span style={{fontSize:14,color:TEXT1,fontWeight:500,flex:1}}>{item.name}</span>
+                    <span style={{fontSize:14,color:isComplete?TEXT3:TEXT1,fontWeight:500,flex:1,textDecoration:isComplete?"line-through":"none"}}>{item.name}</span>
                     <span style={{fontSize:11,color:sc.text,background:sc.bg,border:`1px solid ${sc.border}`,borderRadius:4,padding:"3px 8px",whiteSpace:"nowrap",flexShrink:0}}>{item.status}</span>
                   </div>
                   <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:progress?8:0}}>
@@ -590,7 +631,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
       {tab==="team"&&(
         <div style={{padding:pad}}>
           <div style={{fontFamily:"'Playfair Display',serif",fontSize:isMobile?20:22,marginBottom:4,color:TEXT1}}>Team Overview</div>
-          <div style={{fontSize:12,color:TEXT3,marginBottom:20}}>{members.length} members · {tasks.length} tasks</div>
+          <div style={{fontSize:12,color:TEXT3,marginBottom:20}}>{members.length} members · {tasks.length} tasks · {completedTasks.length} complete</div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8,marginBottom:24}}>
             {Object.entries(STATUS_COLORS).map(([s,c])=>{ const count=tasks.filter(t=>t.status===s).length; return <div key={s} style={{background:SURFACE,border:`1px solid ${c.border}`,borderRadius:8,padding:"12px 14px"}}><div style={{fontSize:10,color:c.text,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:4,fontWeight:500}}>{s}</div><div style={{fontSize:24,fontWeight:500,color:c.text,fontFamily:"'Playfair Display',serif"}}>{count}</div></div>; })}
           </div>
@@ -610,14 +651,14 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
                   {Object.entries(STATUS_COLORS).map(([s,c])=>{ const count=m.byStatus[s]||0; if(!count) return null; return<span key={s} style={{fontSize:10,color:c.text,background:c.bg,border:`1px solid ${c.border}`,borderRadius:4,padding:"2px 6px"}}>{count} {s}</span>; })}
                   {m.total===0&&<span style={{fontSize:12,color:TEXT3}}>No tasks assigned</span>}
                 </div>
-                {m.tasks.slice(0,3).map(t=>{ const sc=STATUS_COLORS[t.status]||STATUS_COLORS["Not Started"]; const pc=t.priority?PRIORITY_COLORS[t.priority]:null; const chColor=t.channel?CHANNEL_COLORS[t.channel]:null; return(
+                {m.tasks.filter(t=>t.status!=="Complete").slice(0,3).map(t=>{ const sc=STATUS_COLORS[t.status]||STATUS_COLORS["Not Started"]; const pc=t.priority?PRIORITY_COLORS[t.priority]:null; const chColor=t.channel?CHANNEL_COLORS[t.channel]:null; return(
                   <div key={t.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:BG,borderRadius:6,border:`1px solid ${BORDER}`,marginBottom:4,borderLeft:chColor?`2px solid ${chColor}`:`2px solid ${BORDER}`}}>
                     <span style={{fontSize:12,color:TEXT2,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name}</span>
                     {t.channel&&<span style={{fontSize:9,color:chColor,flexShrink:0}}>{t.channel}</span>}
                     <span style={{fontSize:10,color:sc.text,background:sc.bg,border:`1px solid ${sc.border}`,borderRadius:3,padding:"1px 5px",flexShrink:0,whiteSpace:"nowrap"}}>{t.status}</span>
                   </div>
                 ); })}
-                {m.tasks.length>3&&<div style={{fontSize:11,color:TEXT3,paddingLeft:4}}>+{m.tasks.length-3} more</div>}
+                {m.tasks.filter(t=>t.status!=="Complete").length>3&&<div style={{fontSize:11,color:TEXT3,paddingLeft:4}}>+{m.tasks.filter(t=>t.status!=="Complete").length-3} more active</div>}
               </div>
             ))}
             {members.length===0&&<div style={{color:TEXT3,fontSize:14,paddingTop:40,textAlign:"center"}}>No team members yet</div>}
