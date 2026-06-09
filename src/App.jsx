@@ -180,6 +180,189 @@ function ProfileModal({currentUser,setCurrentUser,onClose,isMobile}){
   );
 }
 
+function PostPreview({post,members,onClose,onEdit,isMobile}){
+  const creator=post.created_by?members.find(m=>m.id===post.created_by):null;
+  const platform=post.platform||"Instagram";
+  const pc=PLATFORM_COLORS[platform];
+
+  // Shared inner content
+  const image=post.image_url?(
+    <img src={post.image_url} alt="" style={{width:"100%",display:"block",objectFit:"cover"}}/>
+  ):(
+    <div style={{width:"100%",paddingTop:"100%",background:"#1a1a1a",position:"relative"}}><span style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:32,opacity:0.2}}>🖼</span></div>
+  );
+
+  const renderPreview=()=>{
+    if(platform==="Instagram") return(
+      <div style={{background:"#fff",borderRadius:4,overflow:"hidden",maxWidth:380,width:"100%",fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"}}>
+        {/* IG Header */}
+        <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px"}}>
+          <div style={{width:32,height:32,borderRadius:"50%",background:`linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)`,padding:2,flexShrink:0}}>
+            <div style={{width:"100%",height:"100%",borderRadius:"50%",background:"#fff",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
+              {creator?<Avatar name={creator.name} color={creator.color} size={26}/>:<div style={{width:26,height:26,borderRadius:"50%",background:"#ddd"}}/>}
+            </div>
+          </div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:13,fontWeight:600,color:"#000",lineHeight:1}}>{creator?creator.name:"fiercearms"}</div>
+            <div style={{fontSize:11,color:"#666"}}>Fierce Firearms</div>
+          </div>
+          <div style={{fontSize:20,color:"#000",cursor:"pointer"}}>···</div>
+        </div>
+        {/* Image */}
+        {image}
+        {/* Actions */}
+        <div style={{padding:"10px 12px 4px"}}>
+          <div style={{display:"flex",gap:14,marginBottom:8}}>
+            <span style={{fontSize:22}}>🤍</span>
+            <span style={{fontSize:22}}>💬</span>
+            <span style={{fontSize:22}}>📤</span>
+            <span style={{marginLeft:"auto",fontSize:22}}>🔖</span>
+          </div>
+          <div style={{fontSize:13,fontWeight:600,color:"#000",marginBottom:4}}>1,247 likes</div>
+          <div style={{fontSize:13,color:"#000",lineHeight:1.5}}>
+            <span style={{fontWeight:600}}>{creator?creator.name.toLowerCase().replace(" ","_"):"fiercearms"} </span>
+            {post.caption||""}
+          </div>
+          <div style={{fontSize:12,color:"#8e8e8e",marginTop:6}}>View all 48 comments</div>
+          <div style={{fontSize:11,color:"#8e8e8e",marginTop:4,textTransform:"uppercase",letterSpacing:"0.03em"}}>2 hours ago</div>
+        </div>
+      </div>
+    );
+
+    if(platform==="Facebook") return(
+      <div style={{background:"#fff",borderRadius:8,overflow:"hidden",maxWidth:400,width:"100%",fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",boxShadow:"0 1px 2px rgba(0,0,0,0.2)"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 16px"}}>
+          <div style={{width:40,height:40,borderRadius:"50%",background:"#1877F2",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",flexShrink:0}}>
+            {creator?<Avatar name={creator.name} color={creator.color} size={38}/>:<div style={{color:"#fff",fontWeight:700,fontSize:16}}>F</div>}
+          </div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:14,fontWeight:600,color:"#050505"}}>{creator?creator.name:"Fierce Firearms"}</div>
+            <div style={{fontSize:12,color:"#65676b",display:"flex",alignItems:"center",gap:4}}>2h · <span style={{fontSize:11}}>🌐</span></div>
+          </div>
+          <div style={{fontSize:20,color:"#65676b"}}>···</div>
+        </div>
+        <div style={{fontSize:14,color:"#050505",padding:"0 16px 12px",lineHeight:1.6}}>{post.caption||""}</div>
+        {image}
+        <div style={{padding:"4px 16px",borderTop:"1px solid #e4e6eb",borderBottom:"1px solid #e4e6eb",margin:"8px 0",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{fontSize:13,color:"#65676b"}}>👍 ❤️ 😮 <span style={{marginLeft:4}}>847</span></div>
+          <div style={{fontSize:13,color:"#65676b"}}>124 comments · 38 shares</div>
+        </div>
+        <div style={{display:"flex",padding:"4px 8px 8px"}}>
+          {["👍 Like","💬 Comment","↗ Share"].map(a=>(
+            <button key={a} style={{flex:1,background:"none",border:"none",color:"#65676b",fontSize:13,fontWeight:600,padding:"8px 0",cursor:"pointer",borderRadius:4}}>{a}</button>
+          ))}
+        </div>
+      </div>
+    );
+
+    if(platform==="Twitter") return(
+      <div style={{background:"#000",borderRadius:12,overflow:"hidden",maxWidth:400,width:"100%",fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",border:"1px solid #2f3336"}}>
+        <div style={{display:"flex",gap:12,padding:"12px 16px 0"}}>
+          <div style={{width:40,height:40,borderRadius:"50%",overflow:"hidden",flexShrink:0}}>
+            {creator?<Avatar name={creator.name} color={creator.color} size={40}/>:<div style={{width:40,height:40,borderRadius:"50%",background:"#333"}}/>}
+          </div>
+          <div style={{flex:1}}>
+            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
+              <span style={{fontSize:14,fontWeight:700,color:"#e7e9ea"}}>{creator?creator.name:"Fierce Firearms"}</span>
+              <span style={{fontSize:13,color:"#71767b"}}>@fiercearms · 2h</span>
+            </div>
+            <div style={{fontSize:14,color:"#e7e9ea",lineHeight:1.6,marginBottom:10}}>{post.caption||""}</div>
+            {post.image_url&&<img src={post.image_url} alt="" style={{width:"100%",borderRadius:12,display:"block",marginBottom:10}}/>}
+            <div style={{display:"flex",justifyContent:"space-between",padding:"4px 0 12px",borderTop:"none"}}>
+              {[["💬","48"],["🔁","124"],["❤️","847"],["📊","12K"],["↗",""]].map(([icon,count])=>(
+                <div key={icon} style={{display:"flex",alignItems:"center",gap:4,color:"#71767b",fontSize:13,cursor:"pointer"}}><span style={{fontSize:16}}>{icon}</span>{count&&<span>{count}</span>}</div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+
+    if(platform==="LinkedIn") return(
+      <div style={{background:"#fff",borderRadius:8,overflow:"hidden",maxWidth:400,width:"100%",fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",boxShadow:"0 0 0 1px rgba(0,0,0,0.15)"}}>
+        <div style={{display:"flex",alignItems:"flex-start",gap:10,padding:"12px 16px"}}>
+          <div style={{width:48,height:48,borderRadius:"50%",overflow:"hidden",flexShrink:0}}>
+            {creator?<Avatar name={creator.name} color={creator.color} size={48}/>:<div style={{width:48,height:48,borderRadius:"50%",background:"#ddd"}}/>}
+          </div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:14,fontWeight:600,color:"rgba(0,0,0,0.9)"}}>{creator?creator.name:"Fierce Firearms"}</div>
+            <div style={{fontSize:12,color:"rgba(0,0,0,0.6)"}}>Precision Rifle Manufacturer</div>
+            <div style={{fontSize:12,color:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",gap:4}}>2h · <span style={{fontSize:11}}>🌐</span></div>
+          </div>
+          <div style={{color:"#0a66c2",fontSize:22,fontWeight:700}}>···</div>
+        </div>
+        <div style={{fontSize:14,color:"rgba(0,0,0,0.9)",padding:"0 16px 12px",lineHeight:1.6}}>{post.caption||""}</div>
+        {image}
+        <div style={{padding:"8px 16px",borderTop:"1px solid #e0e0e0"}}>
+          <div style={{fontSize:12,color:"rgba(0,0,0,0.6)",marginBottom:8}}>👍 ❤️ 💡 <span>847 reactions · 124 comments</span></div>
+          <div style={{display:"flex",borderTop:"1px solid #e0e0e0",paddingTop:4}}>
+            {[["👍","Like"],["💬","Comment"],["↗","Share"],["✉️","Send"]].map(([icon,label])=>(
+              <button key={label} style={{flex:1,background:"none",border:"none",color:"rgba(0,0,0,0.6)",fontSize:12,fontWeight:600,padding:"8px 0",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:4,borderRadius:4}}><span>{icon}</span>{label}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+
+    if(platform==="TikTok") return(
+      <div style={{background:"#000",borderRadius:12,overflow:"hidden",maxWidth:260,width:"100%",fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",position:"relative",aspectRatio:"9/16",display:"flex",alignItems:"flex-end"}}>
+        {post.image_url?<img src={post.image_url} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{position:"absolute",inset:0,background:"#111",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:40,opacity:0.2}}>🖼</span></div>}
+        <div style={{position:"relative",zIndex:2,width:"100%",padding:"12px 8px 16px",background:"linear-gradient(transparent,rgba(0,0,0,0.7))"}}>
+          <div style={{display:"flex",alignItems:"flex-end",gap:8}}>
+            <div style={{flex:1}}>
+              <div style={{fontSize:13,fontWeight:700,color:"#fff",marginBottom:4}}>@{creator?creator.name.toLowerCase().replace(" ","_"):"fiercearms"}</div>
+              <div style={{fontSize:12,color:"#fff",lineHeight:1.4,display:"-webkit-box",WebkitLineClamp:3,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{post.caption||""}</div>
+              <div style={{display:"flex",alignItems:"center",gap:6,marginTop:6}}>
+                <span style={{fontSize:11,color:"rgba(255,255,255,0.7)"}}>♪ Original Sound · Fierce Firearms</span>
+              </div>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:14,paddingBottom:4}}>
+              <div style={{width:40,height:40,borderRadius:"50%",border:"2px solid #fff",overflow:"hidden",background:"#333"}}>
+                {creator&&<Avatar name={creator.name} color={creator.color} size={38}/>}
+              </div>
+              {[["❤️","24.7K"],["💬","847"],["↗","3.2K"],["🔖","1.1K"]].map(([icon,count])=>(
+                <div key={icon} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
+                  <span style={{fontSize:22}}>{icon}</span>
+                  <span style={{fontSize:10,color:"#fff",fontWeight:600}}>{count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+
+    // Fallback
+    return(
+      <div style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:10,maxWidth:380,width:"100%",overflow:"hidden"}}>
+        {image}
+        <div style={{padding:16}}>
+          <div style={{fontSize:13,color:TEXT1,lineHeight:1.6}}>{post.caption||"No caption"}</div>
+        </div>
+      </div>
+    );
+  };
+
+  return(
+    <div style={{position:"fixed",inset:0,background:"#000000cc",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(8px)"}} onClick={onClose}>
+      <div onClick={e=>e.stopPropagation()} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:16,maxHeight:"90vh",overflowY:"auto",padding:"20px 16px"}}>
+        {/* Platform badge */}
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:13,color:pc,border:`1px solid ${pc}55`,borderRadius:6,padding:"4px 12px",fontFamily:"'DM Sans',sans-serif",fontWeight:500}}>{platform}</span>
+          <span style={{fontSize:12,color:TEXT3,fontFamily:"'DM Sans',sans-serif"}}>Preview</span>
+        </div>
+        {/* Platform mock */}
+        {renderPreview()}
+        {/* Actions */}
+        <div style={{display:"flex",gap:10}}>
+          <button onClick={onEdit} style={{background:ORANGE,border:"none",color:"#fff",borderRadius:8,padding:"10px 24px",cursor:"pointer",fontSize:14,fontFamily:"'DM Sans',sans-serif",fontWeight:500}}>Edit Post</button>
+          <button onClick={onClose} style={{background:SURFACE,border:`1px solid ${BORDER}`,color:TEXT2,borderRadius:8,padding:"10px 24px",cursor:"pointer",fontSize:14,fontFamily:"'DM Sans',sans-serif"}}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AuthScreen({onAuth}){
   const isMobile=useIsMobile();
   const [mode,setMode]=useState("login");
@@ -268,6 +451,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
 
   const [postModal,setPostModal]=useState(null);
   const [postForm,setPostForm]=useState({caption:"",platform:"Instagram",image_url:"",campaign_id:"",task_id:""});
+  const [previewPost,setPreviewPost]=useState(null);
   const [dragOver,setDragOver]=useState(null);
   const fileRef=useRef();
 
@@ -649,7 +833,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
                             const linked=post.campaign_id?campaigns.find(c=>c.id===post.campaign_id):null;
                             const creator=post.created_by?members.find(m=>m.id===post.created_by):null;
                             return(
-                              <div key={post.id} onClick={()=>openEditPost(post)}
+                              <div key={post.id}
                                 style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:7,overflow:"hidden",cursor:"pointer",borderTop:`3px solid ${PLATFORM_COLORS[post.platform]}`}}
                                 onMouseEnter={e=>e.currentTarget.style.borderColor=BORDER2}
                                 onMouseLeave={e=>e.currentTarget.style.borderTop=`3px solid ${PLATFORM_COLORS[post.platform]}`}
@@ -673,6 +857,17 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
                                       {linked&&<span style={{fontSize:9,color:ORANGE}}>●</span>}
                                       {creator&&<Avatar name={creator.name} color={creator.color} size={14}/>}
                                     </div>
+                                  </div>
+                                  {/* Action buttons */}
+                                  <div style={{display:"flex",gap:4,marginTop:6}}>
+                                    <button onClick={e=>{e.stopPropagation();setPreviewPost(post);}} style={{flex:1,background:SURFACE2,border:`1px solid ${BORDER}`,color:TEXT2,borderRadius:4,padding:"4px 0",cursor:"pointer",fontSize:10,fontFamily:"'DM Sans',sans-serif"}}
+                                      onMouseEnter={e=>{e.currentTarget.style.borderColor=ORANGE;e.currentTarget.style.color=ORANGE;}}
+                                      onMouseLeave={e=>{e.currentTarget.style.borderColor=BORDER;e.currentTarget.style.color=TEXT2;}}
+                                    >Preview</button>
+                                    <button onClick={e=>{e.stopPropagation();openEditPost(post);}} style={{flex:1,background:SURFACE2,border:`1px solid ${BORDER}`,color:TEXT2,borderRadius:4,padding:"4px 0",cursor:"pointer",fontSize:10,fontFamily:"'DM Sans',sans-serif"}}
+                                      onMouseEnter={e=>{e.currentTarget.style.borderColor=BORDER2;e.currentTarget.style.color=TEXT1;}}
+                                      onMouseLeave={e=>{e.currentTarget.style.borderColor=BORDER;e.currentTarget.style.color=TEXT2;}}
+                                    >Edit</button>
                                   </div>
                                 </div>
                               </div>
@@ -975,6 +1170,9 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
 
       {showTypeManager&&<EventTypeManager eventTypes={eventTypes} setEventTypes={setEventTypes} onClose={()=>setShowTypeManager(false)} isMobile={isMobile}/>}
       {showProfile&&<ProfileModal currentUser={currentUser} setCurrentUser={setCurrentUser} onClose={()=>setShowProfile(false)} isMobile={isMobile}/>}
+
+      {/* POST PREVIEW MODAL */}
+      {previewPost&&<PostPreview post={previewPost} members={members} onClose={()=>setPreviewPost(null)} onEdit={()=>{openEditPost(previewPost);setPreviewPost(null);}} isMobile={isMobile}/>}
     </div>
   );
 }
