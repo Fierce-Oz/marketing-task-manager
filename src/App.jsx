@@ -256,8 +256,13 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
   const [menuOpen,setMenuOpen]=useState(false);
 
   const [eventsChannelFilter,setEventsChannelFilter]=useState("All");
+  const [calView,setCalView]=useState("month"); // "month" | "week"
   const [contentYear,setContentYear]=useState(today.getFullYear());
   const [contentMonth,setContentMonth]=useState(today.getMonth());
+  // week view: track the start of the current week (Sunday)
+  const [weekStart,setWeekStart]=useState(()=>{
+    const d=new Date(today); d.setDate(d.getDate()-d.getDay()); d.setHours(0,0,0,0); return d;
+  });
   const [eventsYear,setEventsYear]=useState(today.getFullYear());
   const [eventsMonth,setEventsMonth]=useState(today.getMonth());
 
@@ -311,6 +316,11 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
   const getEventTypeColor=(name)=>{ const t=eventTypes.find(t=>t.name===name); return t?t.color:TEXT3; };
   const prevContent=()=>{ if(contentMonth===0){setContentMonth(11);setContentYear(y=>y-1);}else setContentMonth(m=>m-1); };
   const nextContent=()=>{ if(contentMonth===11){setContentMonth(0);setContentYear(y=>y+1);}else setContentMonth(m=>m+1); };
+  const prevWeek=()=>{ const d=new Date(weekStart); d.setDate(d.getDate()-7); setWeekStart(d); };
+  const nextWeek=()=>{ const d=new Date(weekStart); d.setDate(d.getDate()+7); setWeekStart(d); };
+  const getWeekDays=()=>{ const days=[]; for(let i=0;i<7;i++){ const d=new Date(weekStart); d.setDate(d.getDate()+i); days.push(d); } return days; };
+  const isTodayDate=(d)=>d.getDate()===today.getDate()&&d.getMonth()===today.getMonth()&&d.getFullYear()===today.getFullYear();
+  const getPostsByDate=(d)=>{ const ds=mkDate(d.getFullYear(),d.getMonth(),d.getDate()); return posts.filter(p=>p.post_date===ds); };
   const prevEvents=()=>{ if(eventsMonth===0){setEventsMonth(11);setEventsYear(y=>y-1);}else setEventsMonth(m=>m-1); };
   const nextEvents=()=>{ if(eventsMonth===11){setEventsMonth(0);setEventsYear(y=>y+1);}else setEventsMonth(m=>m+1); };
 
@@ -497,20 +507,187 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
       )}
 
       {/* CONTENT CALENDAR */}
-      {tab==="content"&&renderCalendar(
-        contentYear,contentMonth,prevContent,nextContent,
-        getDayPosts,
-        (post)=>{
-          const linked=post.campaign_id?campaigns.find(c=>c.id===post.campaign_id):null;
-          return(
-            <div key={`post-${post.id}`} onClick={()=>openEditPost(post)} style={{display:"flex",alignItems:"center",gap:3,background:SURFACE2,borderRadius:3,padding:"2px 4px",cursor:"pointer",borderLeft:`2px solid ${PLATFORM_COLORS[post.platform]}`}}>
-              {post.image_url&&<img src={post.image_url} alt="" style={{width:14,height:14,objectFit:"cover",borderRadius:2,flexShrink:0}}/>}
-              <span style={{fontSize:9,color:TEXT3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{post.caption||"Post"}</span>
-              {linked&&<span style={{fontSize:8,color:ORANGE,flexShrink:0}}>●</span>}
+      {tab==="content"&&(
+        <div style={{padding:pad}}>
+          {/* Header: nav + view toggle */}
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,gap:8,flexWrap:"wrap"}}>
+            <div style={{display:"flex",alignItems:"center",gap:12}}>
+              <button onClick={calView==="month"?prevContent:prevWeek} style={{background:"none",border:`1px solid ${BORDER}`,color:TEXT2,borderRadius:6,width:36,height:36,cursor:"pointer",fontSize:20,display:"flex",alignItems:"center",justifyContent:"center"}}>‹</button>
+              <span style={{fontFamily:"'Playfair Display',serif",fontSize:isMobile?16:20,color:TEXT1,minWidth:isMobile?140:200,textAlign:"center"}}>
+                {calView==="month"
+                  ? `${isMobile?MONTHS_SHORT[contentMonth]:MONTHS[contentMonth]} ${contentYear}`
+                  : (()=>{ const days=getWeekDays(); const s=days[0]; const e=days[6]; return s.getMonth()===e.getMonth()?`${MONTHS_SHORT[s.getMonth()]} ${s.getDate()}–${e.getDate()}, ${s.getFullYear()}`:`${MONTHS_SHORT[s.getMonth()]} ${s.getDate()} – ${MONTHS_SHORT[e.getMonth()]} ${e.getDate()}, ${e.getFullYear()}`; })()
+                }
+              </span>
+              <button onClick={calView==="month"?nextContent:nextWeek} style={{background:"none",border:`1px solid ${BORDER}`,color:TEXT2,borderRadius:6,width:36,height:36,cursor:"pointer",fontSize:20,display:"flex",alignItems:"center",justifyContent:"center"}}>›</button>
             </div>
-          );
-        },
-        openAddPost
+            {/* View toggle */}
+            <div style={{display:"flex",gap:2,background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:6,padding:3}}>
+              {["month","week"].map(v=>(
+                <button key={v} onClick={()=>setCalView(v)} style={{background:calView===v?SURFACE2:"transparent",border:calView===v?`1px solid ${BORDER2}`:"1px solid transparent",color:calView===v?TEXT1:TEXT3,borderRadius:4,padding:"5px 14px",cursor:"pointer",fontSize:12,fontFamily:"'DM Sans',sans-serif",fontWeight:calView===v?500:400,textTransform:"capitalize"}}>
+                  {v}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* MONTH VIEW */}
+          {calView==="month"&&(()=>{
+            const daysInMonth=getDaysInMonth(contentYear,contentMonth);
+            const firstDay=getFirstDay(contentYear,contentMonth);
+            const cells=[];
+            for(let i=0;i<firstDay;i++) cells.push(null);
+            for(let d=1;d<=daysInMonth;d++) cells.push(d);
+            return(
+              <div style={{overflowX:isMobile?"auto":"visible"}}>
+                <div style={{minWidth:isMobile?420:"auto"}}>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:2}}>
+                    {DAYS.map(d=><div key={d} style={{textAlign:"center",fontSize:10,color:TEXT3,letterSpacing:"0.08em",textTransform:"uppercase",padding:"4px 0"}}>{isMobile?d[0]:d}</div>)}
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
+                    {cells.map((day,i)=>{
+                      const dayPosts=day?getDayPosts(day):[];
+                      const isDrag=dragOver===i;
+                      return(
+                        <div key={i}
+                          onDragOver={day?(e)=>{e.preventDefault();setDragOver(i);}:undefined}
+                          onDragLeave={day?()=>setDragOver(null):undefined}
+                          onDrop={day?(e)=>handleCalDrop(e,day):undefined}
+                          style={{minHeight:isMobile?90:110,background:day?(isDrag?"#1a2218":SURFACE):"transparent",border:isDrag?`1px dashed ${ORANGE}`:day?`1px solid ${BORDER}`:"none",borderRadius:5,padding:day?"6px":0,position:"relative",overflow:"hidden"}}
+                        >
+                          {day&&(
+                            <>
+                              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                                <span style={{fontSize:11,fontWeight:isToday(contentYear,contentMonth,day)?600:400,color:isToday(contentYear,contentMonth,day)?ORANGE:TEXT3,background:isToday(contentYear,contentMonth,day)?ORANGE+"22":"transparent",borderRadius:3,padding:isToday(contentYear,contentMonth,day)?"1px 4px":0}}>{day}</span>
+                                <button onClick={()=>openAddPost(day)} style={{background:"none",border:`1px solid ${BORDER}`,color:TEXT3,borderRadius:3,width:16,height:16,cursor:"pointer",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>+</button>
+                              </div>
+                              <div style={{display:"flex",flexDirection:"column",gap:2}}>
+                                {dayPosts.slice(0,3).map(post=>{
+                                  const linked=post.campaign_id?campaigns.find(c=>c.id===post.campaign_id):null;
+                                  return(
+                                    <div key={post.id} onClick={()=>openEditPost(post)} style={{display:"flex",alignItems:"center",gap:3,background:SURFACE2,borderRadius:3,padding:"2px 4px",cursor:"pointer",borderLeft:`2px solid ${PLATFORM_COLORS[post.platform]}`}}>
+                                      {post.image_url&&<img src={post.image_url} alt="" style={{width:14,height:14,objectFit:"cover",borderRadius:2,flexShrink:0}}/>}
+                                      <span style={{fontSize:9,color:TEXT3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{post.caption||"Post"}</span>
+                                      {linked&&<span style={{fontSize:8,color:ORANGE,flexShrink:0}}>●</span>}
+                                    </div>
+                                  );
+                                })}
+                                {dayPosts.length>3&&<div style={{fontSize:9,color:TEXT3}}>+{dayPosts.length-3}</div>}
+                              </div>
+                              {isDrag&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:"#00000066",fontSize:9,color:ORANGE,pointerEvents:"none"}}>Drop</div>}
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* WEEK VIEW */}
+          {calView==="week"&&(()=>{
+            const weekDays=getWeekDays();
+            return(
+              <div style={{overflowX:"auto"}}>
+                <div style={{minWidth:isMobile?600:700}}>
+                  {/* Day headers */}
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6,marginBottom:6}}>
+                    {weekDays.map((d,i)=>(
+                      <div key={i} style={{textAlign:"center",padding:"6px 4px",background:isTodayDate(d)?ORANGE+"22":SURFACE,border:`1px solid ${isTodayDate(d)?ORANGE:BORDER}`,borderRadius:6}}>
+                        <div style={{fontSize:10,color:isTodayDate(d)?ORANGE:TEXT3,textTransform:"uppercase",letterSpacing:"0.08em"}}>{DAYS[d.getDay()]}</div>
+                        <div style={{fontSize:isMobile?14:18,fontWeight:600,color:isTodayDate(d)?ORANGE:TEXT1,fontFamily:"'Playfair Display',serif"}}>{d.getDate()}</div>
+                        <div style={{fontSize:10,color:TEXT3}}>{MONTHS_SHORT[d.getMonth()]}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Post columns */}
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6,alignItems:"start"}}>
+                    {weekDays.map((d,i)=>{
+                      const dayPosts=getPostsByDate(d);
+                      const dayNum=d.getDate();
+                      const dayMonth=d.getMonth();
+                      const dayYear=d.getFullYear();
+                      const isDrag=dragOver===`week-${i}`;
+                      return(
+                        <div key={i}
+                          onDragOver={(e)=>{e.preventDefault();setDragOver(`week-${i}`);}}
+                          onDragLeave={()=>setDragOver(null)}
+                          onDrop={(e)=>{
+                            e.preventDefault(); setDragOver(null);
+                            const file=e.dataTransfer.files[0];
+                            if(file&&file.type.startsWith("image/")){
+                              // temporarily set month to match dropped day for openAddPost
+                              const origMonth=contentMonth; const origYear=contentYear;
+                              setContentMonth(dayMonth); setContentYear(dayYear);
+                              setTimeout(()=>{ setContentMonth(origMonth); setContentYear(origYear); },100);
+                              uploadImage(file).then(url=>{
+                                if(!url) return;
+                                const ds=mkDate(dayYear,dayMonth,dayNum);
+                                supabase.from("posts").insert({caption:"",platform:"Instagram",image_url:url,post_date:ds,created_by:currentUser.id}).select().single().then(({data})=>{
+                                  setPosts(p=>[...p,data]);
+                                  setPostModal({day:dayNum,ds,editId:data.id});
+                                  setPostForm({caption:"",platform:"Instagram",image_url:url,campaign_id:"",task_id:""});
+                                });
+                              });
+                            }
+                          }}
+                          style={{display:"flex",flexDirection:"column",gap:6,minHeight:120,background:isDrag?"#1a2218":"transparent",border:isDrag?`1px dashed ${ORANGE}`:"1px solid transparent",borderRadius:6,padding:4,position:"relative"}}
+                        >
+                          {/* Add button */}
+                          <button onClick={()=>{
+                            setContentMonth(dayMonth); setContentYear(dayYear);
+                            setTimeout(()=>openAddPost(dayNum),10);
+                          }} style={{background:"none",border:`1px dashed ${BORDER}`,color:TEXT3,borderRadius:5,padding:"4px",cursor:"pointer",fontSize:11,fontFamily:"'DM Sans',sans-serif",width:"100%",textAlign:"center"}}
+                            onMouseEnter={e=>{e.currentTarget.style.borderColor=ORANGE;e.currentTarget.style.color=ORANGE;}}
+                            onMouseLeave={e=>{e.currentTarget.style.borderColor=BORDER;e.currentTarget.style.color=TEXT3;}}
+                          >+ Add</button>
+
+                          {/* Post cards */}
+                          {dayPosts.map(post=>{
+                            const linked=post.campaign_id?campaigns.find(c=>c.id===post.campaign_id):null;
+                            const creator=post.created_by?members.find(m=>m.id===post.created_by):null;
+                            return(
+                              <div key={post.id} onClick={()=>openEditPost(post)}
+                                style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:7,overflow:"hidden",cursor:"pointer",borderTop:`3px solid ${PLATFORM_COLORS[post.platform]}`}}
+                                onMouseEnter={e=>e.currentTarget.style.borderColor=BORDER2}
+                                onMouseLeave={e=>e.currentTarget.style.borderTop=`3px solid ${PLATFORM_COLORS[post.platform]}`}
+                              >
+                                {/* Image */}
+                                {post.image_url?(
+                                  <img src={post.image_url} alt="" style={{width:"100%",aspectRatio:"1/1",objectFit:"cover",display:"block"}}/>
+                                ):(
+                                  <div style={{width:"100%",aspectRatio:"1/1",background:SURFACE2,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                                    <span style={{fontSize:22,opacity:0.3}}>🖼</span>
+                                  </div>
+                                )}
+                                {/* Caption + meta */}
+                                <div style={{padding:"7px 8px"}}>
+                                  <div style={{fontSize:11,color:TEXT2,lineHeight:1.4,marginBottom:5,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>
+                                    {post.caption||<span style={{color:TEXT3,fontStyle:"italic"}}>No caption</span>}
+                                  </div>
+                                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:4}}>
+                                    <span style={{fontSize:10,color:PLATFORM_COLORS[post.platform]}}>{post.platform}</span>
+                                    <div style={{display:"flex",alignItems:"center",gap:4}}>
+                                      {linked&&<span style={{fontSize:9,color:ORANGE}}>●</span>}
+                                      {creator&&<Avatar name={creator.name} color={creator.color} size={14}/>}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {isDrag&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:"#00000066",fontSize:10,color:ORANGE,pointerEvents:"none",borderRadius:6}}>Drop image</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
       )}
 
       {/* EVENTS & DEADLINES */}
