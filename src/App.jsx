@@ -322,12 +322,31 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
     setPostModal(null);
   };
   const deletePost=async(id)=>{ await supabase.from("posts").delete().eq("id",id); setPosts(p=>p.filter(post=>post.id!==id)); setPostModal(null); };
-  const handleImageFile=(file)=>{ if(!file||!file.type.startsWith("image/")) return; setPostForm(f=>({...f,image_url:URL.createObjectURL(file)})); };
+  const uploadImage=async(file)=>{
+    if(!file||!file.type.startsWith("image/")) return null;
+    const ext=file.name.split(".").pop();
+    const path=`${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const{error}=await supabase.storage.from("post-images").upload(path,file,{contentType:file.type});
+    if(error){ console.error("Upload error",error); return null; }
+    const{data}=supabase.storage.from("post-images").getPublicUrl(path);
+    return data.publicUrl;
+  };
+
+  const handleImageFile=async(file)=>{
+    if(!file||!file.type.startsWith("image/")) return;
+    setPostForm(f=>({...f,image_url:"uploading..."}));
+    const url=await uploadImage(file);
+    if(url) setPostForm(f=>({...f,image_url:url}));
+    else setPostForm(f=>({...f,image_url:""}));
+  };
+
   const handleCalDrop=async(e,day)=>{
     e.preventDefault(); setDragOver(null);
     const file=e.dataTransfer.files[0];
     if(file&&file.type.startsWith("image/")){
-      const url=URL.createObjectURL(file); const ds=mkDate(contentYear,contentMonth,day);
+      const url=await uploadImage(file);
+      if(!url) return;
+      const ds=mkDate(contentYear,contentMonth,day);
       const{data}=await supabase.from("posts").insert({caption:"",platform:"Instagram",image_url:url,post_date:ds,created_by:currentUser.id}).select().single();
       setPosts(p=>[...p,data]); setPostModal({day,ds,editId:data.id}); setPostForm({caption:"",platform:"Instagram",image_url:url,campaign_id:"",task_id:""});
     }
@@ -673,7 +692,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
           <div style={{fontSize:13,color:TEXT3,marginBottom:18}}>{MONTHS[contentMonth]} {postModal.day}, {contentYear}</div>
           <div onClick={()=>fileRef.current.click()} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();handleImageFile(e.dataTransfer.files[0]);}}
             style={{border:`1px dashed ${BORDER2}`,borderRadius:10,minHeight:postForm.image_url?"auto":100,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",marginBottom:16,overflow:"hidden",background:BG}}>
-            {postForm.image_url?<img src={postForm.image_url} alt="" style={{width:"100%",maxHeight:200,objectFit:"cover",display:"block"}}/>:<div style={{textAlign:"center",color:TEXT3,fontSize:13,padding:20}}>Tap or drop an image</div>}
+            {postForm.image_url==="uploading..."?<div style={{textAlign:"center",color:TEXT3,fontSize:13,padding:20}}>Uploading...</div>:postForm.image_url?<img src={postForm.image_url} alt="" style={{width:"100%",maxHeight:200,objectFit:"cover",display:"block"}}/>:<div style={{textAlign:"center",color:TEXT3,fontSize:13,padding:20}}>Tap or drop an image</div>}
           </div>
           <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>handleImageFile(e.target.files[0])}/>
           <FL>Platform</FL>
