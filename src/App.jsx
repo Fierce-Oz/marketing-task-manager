@@ -178,6 +178,8 @@ function PostPreview({post,images,members,onClose,onEdit,isMobile}){
   const creator=post.created_by?members.find(m=>m.id===post.created_by):null;
   const platform=post.platform||"Instagram";
   const pc=PLATFORM_COLORS[platform];
+  const handle=post.account_handle?(post.account_handle.startsWith("@")?post.account_handle:`@${post.account_handle}`):creator?`@${creator.name.toLowerCase().replace(/\s+/g,"_")}`:"@fiercearms";
+  const displayName=post.account_handle?post.account_handle.replace(/^@/,""):creator?creator.name:"Fierce Firearms";
   const hasImages=images&&images.length>0;
   const imgEl=hasImages?<CarouselViewer images={images} style={{width:"100%"}} imgStyle={{aspectRatio:"1/1"}}/>:post.image_url?<img src={post.image_url} alt="" style={{width:"100%",aspectRatio:"1/1",objectFit:"cover",display:"block"}}/>:<div style={{width:"100%",aspectRatio:"1/1",background:"#1a1a1a",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:32,opacity:0.2}}>🖼</span></div>;
 
@@ -190,7 +192,7 @@ function PostPreview({post,images,members,onClose,onEdit,isMobile}){
               {creator?<Avatar name={creator.name} color={creator.color} size={26}/>:<div style={{width:26,height:26,borderRadius:"50%",background:"#ddd"}}/>}
             </div>
           </div>
-          <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,color:"#000"}}>{creator?creator.name:"fiercearms"}</div><div style={{fontSize:11,color:"#666"}}>Fierce Firearms</div></div>
+          <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,color:"#000"}}>{displayName}</div><div style={{fontSize:11,color:"#666"}}>Fierce Firearms</div></div>
           <div style={{fontSize:20,color:"#000"}}>···</div>
         </div>
         {imgEl}
@@ -200,7 +202,7 @@ function PostPreview({post,images,members,onClose,onEdit,isMobile}){
             <span style={{marginLeft:"auto",fontSize:22}}>🔖</span>
           </div>
           <div style={{fontSize:13,fontWeight:600,color:"#000",marginBottom:4}}>1,247 likes</div>
-          <div style={{fontSize:13,color:"#000",lineHeight:1.5}}><span style={{fontWeight:600}}>{creator?creator.name.toLowerCase().replace(" ","_"):"fiercearms"} </span>{post.caption||""}</div>
+          <div style={{fontSize:13,color:"#000",lineHeight:1.5}}><span style={{fontWeight:600}}>{handle} </span>{post.caption||""}</div>
           <div style={{fontSize:12,color:"#8e8e8e",marginTop:6}}>View all 48 comments</div>
           <div style={{fontSize:11,color:"#8e8e8e",marginTop:4,textTransform:"uppercase",letterSpacing:"0.03em"}}>2 hours ago</div>
         </div>
@@ -212,7 +214,7 @@ function PostPreview({post,images,members,onClose,onEdit,isMobile}){
           <div style={{width:40,height:40,borderRadius:"50%",background:"#1877F2",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",flexShrink:0}}>
             {creator?<Avatar name={creator.name} color={creator.color} size={38}/>:<div style={{color:"#fff",fontWeight:700,fontSize:16}}>F</div>}
           </div>
-          <div style={{flex:1}}><div style={{fontSize:14,fontWeight:600,color:"#050505"}}>{creator?creator.name:"Fierce Firearms"}</div><div style={{fontSize:12,color:"#65676b"}}>2h · 🌐</div></div>
+          <div style={{flex:1}}><div style={{fontSize:14,fontWeight:600,color:"#050505"}}>{displayName}</div><div style={{fontSize:12,color:"#65676b"}}>2h · 🌐</div></div>
           <div style={{fontSize:20,color:"#65676b"}}>···</div>
         </div>
         <div style={{fontSize:14,color:"#050505",padding:"0 16px 12px",lineHeight:1.6}}>{post.caption||""}</div>
@@ -231,7 +233,7 @@ function PostPreview({post,images,members,onClose,onEdit,isMobile}){
         <div style={{display:"flex",gap:12,padding:"12px 16px 0"}}>
           <div style={{width:40,height:40,borderRadius:"50%",overflow:"hidden",flexShrink:0}}>{creator?<Avatar name={creator.name} color={creator.color} size={40}/>:<div style={{width:40,height:40,borderRadius:"50%",background:"#333"}}/>}</div>
           <div style={{flex:1}}>
-            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}><span style={{fontSize:14,fontWeight:700,color:"#e7e9ea"}}>{creator?creator.name:"Fierce Firearms"}</span><span style={{fontSize:13,color:"#71767b"}}>@fiercearms · 2h</span></div>
+            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}><span style={{fontSize:14,fontWeight:700,color:"#e7e9ea"}}>{displayName}</span><span style={{fontSize:13,color:"#71767b"}}>{handle} · 2h</span></div>
             <div style={{fontSize:14,color:"#e7e9ea",lineHeight:1.6,marginBottom:10}}>{post.caption||""}</div>
             <div style={{borderRadius:12,overflow:"hidden",marginBottom:10}}>{imgEl}</div>
             <div style={{display:"flex",justifyContent:"space-between",padding:"4px 0 12px"}}>
@@ -247,7 +249,7 @@ function PostPreview({post,images,members,onClose,onEdit,isMobile}){
       <div style={{background:"#fff",borderRadius:8,overflow:"hidden",maxWidth:400,width:"100%",fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",boxShadow:"0 0 0 1px rgba(0,0,0,0.15)"}}>
         <div style={{display:"flex",alignItems:"flex-start",gap:10,padding:"12px 16px"}}>
           <div style={{width:48,height:48,borderRadius:"50%",overflow:"hidden",flexShrink:0}}>{creator?<Avatar name={creator.name} color={creator.color} size={48}/>:<div style={{width:48,height:48,borderRadius:"50%",background:"#ddd"}}/>}</div>
-          <div style={{flex:1}}><div style={{fontSize:14,fontWeight:600,color:"rgba(0,0,0,0.9)"}}>{creator?creator.name:"Fierce Firearms"}</div><div style={{fontSize:12,color:"rgba(0,0,0,0.6)"}}>Precision Rifle Manufacturer</div><div style={{fontSize:12,color:"rgba(0,0,0,0.6)"}}>2h · 🌐</div></div>
+          <div style={{flex:1}}><div style={{fontSize:14,fontWeight:600,color:"rgba(0,0,0,0.9)"}}>{displayName}</div><div style={{fontSize:12,color:"rgba(0,0,0,0.6)"}}>Precision Rifle Manufacturer</div><div style={{fontSize:12,color:"rgba(0,0,0,0.6)"}}>2h · 🌐</div></div>
         </div>
         <div style={{fontSize:14,color:"rgba(0,0,0,0.9)",padding:"0 16px 12px",lineHeight:1.6}}>{post.caption||""}</div>
         {imgEl}
@@ -267,7 +269,7 @@ function PostPreview({post,images,members,onClose,onEdit,isMobile}){
         <div style={{position:"relative",zIndex:2,width:"100%",padding:"12px 8px 16px",background:"linear-gradient(transparent,rgba(0,0,0,0.7))"}}>
           <div style={{display:"flex",alignItems:"flex-end",gap:8}}>
             <div style={{flex:1}}>
-              <div style={{fontSize:13,fontWeight:700,color:"#fff",marginBottom:4}}>@{creator?creator.name.toLowerCase().replace(" ","_"):"fiercearms"}</div>
+              <div style={{fontSize:13,fontWeight:700,color:"#fff",marginBottom:4}}>{handle}</div>
               <div style={{fontSize:12,color:"#fff",lineHeight:1.4,display:"-webkit-box",WebkitLineClamp:3,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{post.caption||""}</div>
             </div>
             <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:14,paddingBottom:4}}>
@@ -384,6 +386,73 @@ function ProfileModal({currentUser,setCurrentUser,onClose,isMobile}){
   );
 }
 
+function SocialAccountManager({socialAccounts,setSocialAccounts,onClose,isMobile}){
+  const [platform,setPlatform]=useState("Instagram");
+  const [handle,setHandle]=useState("");
+  const [label,setLabel]=useState("");
+  const [err,setErr]=useState("");
+
+  const addAccount=async()=>{
+    if(!handle.trim()){setErr("Enter a handle."); return;}
+    const cleanHandle=handle.replace(/^@/,"").trim();
+    if(socialAccounts.find(a=>a.platform===platform&&a.handle.toLowerCase()===cleanHandle.toLowerCase())){setErr("That account already exists."); return;}
+    const{data,error}=await supabase.from("social_accounts").insert({platform,handle:cleanHandle,label:label.trim()}).select().single();
+    if(error){setErr("Error saving."); return;}
+    setSocialAccounts(prev=>[...prev,data]);
+    setHandle(""); setLabel(""); setErr("");
+  };
+
+  const deleteAccount=async(id)=>{
+    await supabase.from("social_accounts").delete().eq("id",id);
+    setSocialAccounts(prev=>prev.filter(a=>a.id!==id));
+  };
+
+  const platformAccounts=socialAccounts.filter(a=>a.platform===platform);
+
+  return(
+    <ModalOverlay onClose={onClose} isMobile={isMobile}>
+      <div style={{fontFamily:"'Playfair Display',serif",fontSize:20,marginBottom:4,color:TEXT1}}>Manage Social Accounts</div>
+      <div style={{fontSize:13,color:TEXT3,marginBottom:20}}>Save handles for quick selection when creating posts</div>
+
+      {/* Platform tabs */}
+      <div style={{display:"flex",gap:4,marginBottom:20,flexWrap:"wrap"}}>
+        {Object.entries(PLATFORM_COLORS).map(([p,c])=>(
+          <button key={p} onClick={()=>setPlatform(p)} style={{fontSize:12,color:platform===p?c:TEXT3,background:platform===p?`${c}22`:"transparent",border:`1px solid ${platform===p?c:BORDER}`,borderRadius:6,padding:"5px 12px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontWeight:platform===p?500:400}}>
+            {p} {socialAccounts.filter(a=>a.platform===p).length>0&&<span style={{fontSize:10,opacity:0.7}}>({socialAccounts.filter(a=>a.platform===p).length})</span>}
+          </button>
+        ))}
+      </div>
+
+      {/* Existing accounts for selected platform */}
+      <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:16}}>
+        {platformAccounts.length===0&&<div style={{fontSize:13,color:TEXT3,padding:"8px 0"}}>No {platform} accounts saved yet</div>}
+        {platformAccounts.map(a=>(
+          <div key={a.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8}}>
+            <div style={{width:8,height:8,borderRadius:"50%",background:PLATFORM_COLORS[a.platform],flexShrink:0}}/>
+            <span style={{flex:1,fontSize:13,color:TEXT1,fontWeight:500}}>@{a.handle}</span>
+            {a.label&&<span style={{fontSize:12,color:TEXT3}}>{a.label}</span>}
+            <button onClick={()=>deleteAccount(a.id)} style={{background:"none",border:"none",color:TEXT3,cursor:"pointer",fontSize:18,padding:"0 4px",lineHeight:1}}
+              onMouseEnter={e=>e.currentTarget.style.color="#a05050"}
+              onMouseLeave={e=>e.currentTarget.style.color=TEXT3}
+            >×</button>
+          </div>
+        ))}
+      </div>
+
+      {/* Add new account */}
+      <div style={{borderTop:`1px solid ${BORDER}`,paddingTop:16}}>
+        <FL>Add {platform} Account</FL>
+        <div style={{display:"flex",gap:8,marginBottom:10}}>
+          <input value={handle} onChange={e=>setHandle(e.target.value)} onKeyDown={e=>{if(e.key==="Enter") addAccount();}} placeholder="@handle" style={{...inputStyle,flex:1}}/>
+          <input value={label} onChange={e=>setLabel(e.target.value)} onKeyDown={e=>{if(e.key==="Enter") addAccount();}} placeholder="Label (optional)" style={{...inputStyle,flex:1}}/>
+        </div>
+        {err&&<div style={{fontSize:12,color:"#c47a30",marginBottom:10}}>{err}</div>}
+        <OrangeBtn onClick={addAccount} style={{width:"100%"}}>+ Add Account</OrangeBtn>
+      </div>
+    </ModalOverlay>
+  );
+}
+
 function AuthScreen({onAuth}){
   const isMobile=useIsMobile();
   const [mode,setMode]=useState("login");
@@ -442,7 +511,9 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
   const [campaigns,setCampaigns]=useState([]);
   const [tasks,setTasks]=useState([]);
   const [posts,setPosts]=useState([]);
-  const [postImagesMap,setPostImagesMap]=useState({}); // postId -> [{url,id,position}]
+  const [postImagesMap,setPostImagesMap]=useState({});
+  const [socialAccounts,setSocialAccounts]=useState([]);
+  const [showAccountManager,setShowAccountManager]=useState(false); // postId -> [{url,id,position}]
   const [events,setEvents]=useState([]);
   const [members,setMembers]=useState([]);
   const [eventTypes,setEventTypes]=useState([]);
@@ -460,7 +531,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
   const [eventsMonth,setEventsMonth]=useState(today.getMonth());
 
   const [postModal,setPostModal]=useState(null);
-  const [postForm,setPostForm]=useState({caption:"",platform:"Instagram",campaign_id:"",task_id:""});
+  const [postForm,setPostForm]=useState({caption:"",platform:"Instagram",account_id:"",account_handle:"",campaign_id:"",task_id:""});
   const [postImages,setPostImages]=useState([]); // [{url, id}] for current modal
   const [previewPost,setPreviewPost]=useState(null);
   const [dragOver,setDragOver]=useState(null);
@@ -477,7 +548,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
 
   useEffect(()=>{
     async function fetchAll(){
-      const [m,p,ca,t,po,ev,et,pi]=await Promise.all([
+      const [m,p,ca,t,po,ev,et,pi,sa]=await Promise.all([
         supabase.from("members").select("*").order("created_at"),
         supabase.from("programs").select("*").order("created_at"),
         supabase.from("campaigns").select("*").order("created_at"),
@@ -486,10 +557,11 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
         supabase.from("events").select("*").order("event_date"),
         supabase.from("event_types").select("*").order("created_at"),
         supabase.from("post_images").select("*").order("position"),
+        supabase.from("social_accounts").select("*").order("platform"),
       ]);
       setMembers(m.data||[]); setPrograms(p.data||[]); setCampaigns(ca.data||[]);
       setTasks(t.data||[]); setPosts(po.data||[]); setEvents(ev.data||[]);
-      setEventTypes(et.data||[]);
+      setEventTypes(et.data||[]); setSocialAccounts(sa.data||[]);
       // Build postImagesMap
       const map={};
       (pi.data||[]).forEach(img=>{ if(!map[img.post_id]) map[img.post_id]=[]; map[img.post_id].push(img); });
@@ -538,12 +610,12 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
   // ── Post modal ────────────────────────────────────────────────────────────
   const openAddPost=(day,month=contentMonth,year=contentYear)=>{
     setPostModal({day,ds:mkDate(year,month,day)});
-    setPostForm({caption:"",platform:"Instagram",campaign_id:"",task_id:""});
+    setPostForm({caption:"",platform:"Instagram",account_id:"",account_handle:"",campaign_id:"",task_id:""});
     setPostImages([]);
   };
   const openEditPost=(post)=>{
     setPostModal({day:parseInt(post.post_date.split("-")[2]),ds:post.post_date,editId:post.id});
-    setPostForm({caption:post.caption,platform:post.platform,campaign_id:post.campaign_id||"",task_id:post.task_id||""});
+    setPostForm({caption:post.caption,platform:post.platform,account_id:post.account_id||"",account_handle:post.account_handle||"",campaign_id:post.campaign_id||"",task_id:post.task_id||""});
     // Load carousel images
     const imgs=postImagesMap[post.id];
     if(imgs&&imgs.length>0) setPostImages(imgs.map(i=>({url:i.image_url||i.url,id:i.id,position:i.position})));
@@ -552,7 +624,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
   };
 
   const savePost=async()=>{
-    const payload={caption:postForm.caption,platform:postForm.platform,campaign_id:postForm.campaign_id||null,task_id:postForm.task_id||null};
+    const payload={caption:postForm.caption,platform:postForm.platform,account_id:postForm.account_id||null,account_handle:postForm.account_handle||null,campaign_id:postForm.campaign_id||null,task_id:postForm.task_id||null};
     // Set cover image_url to first image for backwards compat
     if(postImages.length>0) payload.image_url=postImages[0].url;
     else payload.image_url="";
@@ -831,6 +903,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
                                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:4,marginBottom:6}}>
                                     <div style={{display:"flex",alignItems:"center",gap:4}}>
                                       <span style={{fontSize:10,color:PLATFORM_COLORS[post.platform]}}>{post.platform}</span>
+                                      {post.account_handle&&<span style={{fontSize:10,color:TEXT3}}>@{post.account_handle}</span>}
                                       {imgs.length>1&&<span style={{fontSize:10,color:TEXT3}}>⧉ {imgs.length}</span>}
                                     </div>
                                     <div style={{display:"flex",alignItems:"center",gap:4}}>
@@ -989,8 +1062,30 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
           <div style={{fontSize:13,color:TEXT3,marginBottom:18}}>{MONTHS[contentMonth]} {postModal.day}, {contentYear}</div>
           <CarouselUploader images={postImages} setImages={setPostImages} uploadImage={uploadImage}/>
           <FL>Platform</FL>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:16}}>
-            {Object.entries(PLATFORM_COLORS).map(([p,c])=><button key={p} onClick={()=>setPostForm(f=>({...f,platform:p}))} style={{background:postForm.platform===p?`${c}22`:"transparent",border:`1px solid ${postForm.platform===p?c:BORDER}`,color:postForm.platform===p?c:TEXT3,borderRadius:6,padding:"6px 12px",fontSize:13,cursor:"pointer"}}>{p}</button>)}
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
+            {Object.entries(PLATFORM_COLORS).map(([p,c])=><button key={p} onClick={()=>setPostForm(f=>({...f,platform:p,account_id:"",account_handle:""}))} style={{background:postForm.platform===p?`${c}22`:"transparent",border:`1px solid ${postForm.platform===p?c:BORDER}`,color:postForm.platform===p?c:TEXT3,borderRadius:6,padding:"6px 12px",fontSize:13,cursor:"pointer"}}>{p}</button>)}
+          </div>
+          {/* Account picker */}
+          <FL>Account / Handle</FL>
+          <div style={{display:"flex",gap:8,marginBottom:16,alignItems:"flex-start"}}>
+            <div style={{flex:1}}>
+              {/* Saved accounts for this platform */}
+              {socialAccounts.filter(a=>a.platform===postForm.platform).length>0&&(
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
+                  {socialAccounts.filter(a=>a.platform===postForm.platform).map(a=>(
+                    <button key={a.id} onClick={()=>setPostForm(f=>({...f,account_id:a.id,account_handle:a.handle}))}
+                      style={{fontSize:12,color:postForm.account_id===a.id?PLATFORM_COLORS[postForm.platform]:TEXT2,background:postForm.account_id===a.id?`${PLATFORM_COLORS[postForm.platform]}22`:SURFACE2,border:`1px solid ${postForm.account_id===a.id?PLATFORM_COLORS[postForm.platform]:BORDER}`,borderRadius:6,padding:"4px 10px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+                      @{a.handle}{a.label?` · ${a.label}`:""}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <input value={postForm.account_handle} onChange={e=>setPostForm(f=>({...f,account_handle:e.target.value,account_id:""}))} placeholder={`@handle (or select above)`} style={{...inputStyle,fontSize:13}}/>
+            </div>
+            <button onClick={()=>setShowAccountManager(true)} style={{background:"none",border:`1px solid ${BORDER}`,color:TEXT3,borderRadius:6,padding:"11px 12px",cursor:"pointer",fontSize:12,fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap",flexShrink:0}}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor=ORANGE;e.currentTarget.style.color=ORANGE;}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor=BORDER;e.currentTarget.style.color=TEXT3;}}
+            >Manage</button>
           </div>
           <FL>Caption</FL>
           <textarea value={postForm.caption} onChange={e=>setPostForm(f=>({...f,caption:e.target.value}))} placeholder="Write your caption..." rows={3} style={{width:"100%",background:BG,border:`1px solid ${BORDER}`,borderRadius:8,color:TEXT1,fontSize:14,padding:"11px 13px",resize:"vertical",fontFamily:"'DM Sans',sans-serif",outline:"none",boxSizing:"border-box",lineHeight:1.6,marginBottom:14}}/>
@@ -1067,6 +1162,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
 
       {showTypeManager&&<EventTypeManager eventTypes={eventTypes} setEventTypes={setEventTypes} onClose={()=>setShowTypeManager(false)} isMobile={isMobile}/>}
       {showProfile&&<ProfileModal currentUser={currentUser} setCurrentUser={setCurrentUser} onClose={()=>setShowProfile(false)} isMobile={isMobile}/>}
+      {showAccountManager&&<SocialAccountManager socialAccounts={socialAccounts} setSocialAccounts={setSocialAccounts} onClose={()=>setShowAccountManager(false)} isMobile={isMobile}/>}
       {previewPost&&<PostPreview post={previewPost} images={getPostImages(previewPost)} members={members} onClose={()=>setPreviewPost(null)} onEdit={()=>{openEditPost(previewPost);setPreviewPost(null);}} isMobile={isMobile}/>}
     </div>
   );
