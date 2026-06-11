@@ -537,6 +537,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
   const [postImages,setPostImages]=useState([]); // [{url, id}] for current modal
   const [previewPost,setPreviewPost]=useState(null);
   const [dragOver,setDragOver]=useState(null);
+  const [draggingPost,setDraggingPost]=useState(null); // post being dragged
 
   const [eventModal,setEventModal]=useState(null);
   const [eventForm,setEventForm]=useState({title:"",event_date:"",end_date:"",location:"",description:"",event_type:"",assignee_id:""});
@@ -662,6 +663,13 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
     setPosts(p=>p.filter(post=>post.id!==id));
     setPostImagesMap(prev=>{ const n={...prev}; delete n[id]; return n; });
     setPostModal(null);
+  };
+
+  const movePost=async(post,newDs)=>{
+    if(post.post_date===newDs) return;
+    const{data}=await supabase.from("posts").update({post_date:newDs}).eq("id",post.id).select().single();
+    if(data) setPosts(p=>p.map(px=>px.id===post.id?data:px));
+    setDraggingPost(null); setDragOver(null);
   };
 
   const getDayPosts=(day)=>{ const ds=mkDate(contentYear,contentMonth,day); return posts.filter(p=>p.post_date===ds); };
@@ -821,8 +829,34 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
                   <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
                     {cells.map((day,i)=>{
                       const dayPosts=day?getDayPosts(day):[];
+                      const isDragOver=dragOver===`month-${i}`&&draggingPost;
                       return(
-                        <div key={i} style={{minHeight:isMobile?90:110,background:day?SURFACE:"transparent",border:day?`1px solid ${BORDER}`:"none",borderRadius:5,padding:day?"6px":0,position:"relative",overflow:"hidden"}}>
+                        <div key={i}
+                          onDragOver={day?(e)=>{e.preventDefault();if(draggingPost) setDragOver(`month-${i}`);}:undefined}
+                          onDragLeave={day?()=>setDragOver(null):undefined}
+                          onDrop={day?async(e)=>{
+                            e.preventDefault();
+                            if(draggingPost){ await movePost(draggingPost,mkDate(contentYear,contentMonth,day)); }
+                            else{
+                              // file drop
+                              const file=e.dataTransfer.files[0];
+                              if(file&&file.type.startsWith("image/")){
+                                const url=await uploadImage(file);
+                                if(!url) return;
+                                const ds=mkDate(contentYear,contentMonth,day);
+                                const{data}=await supabase.from("posts").insert({caption:"",platform:"Instagram",image_url:url,post_date:ds,created_by:currentUser.id}).select().single();
+                                setPosts(p=>[...p,data]);
+                                await supabase.from("post_images").insert({post_id:data.id,image_url:url,position:0});
+                                setPostImagesMap(prev=>({...prev,[data.id]:[{url,image_url:url,id:"new",position:0}]}));
+                                setPostModal({day,ds,editId:data.id});
+                                setPostForm({caption:"",platform:"Instagram",account_id:"",account_handle:"",campaign_id:"",task_id:""});
+                                setPostImages([{url,id:"new"}]);
+                              }
+                            }
+                            setDragOver(null);
+                          }:undefined}
+                          style={{minHeight:isMobile?90:110,background:day?(isDragOver?ORANGE+"11":SURFACE):"transparent",border:isDragOver?`1px dashed ${ORANGE}`:day?`1px solid ${BORDER}`:"none",borderRadius:5,padding:day?"6px":0,position:"relative",overflow:"hidden"}}
+                        >
                           {day&&(<>
                             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                               <span style={{fontSize:11,fontWeight:isToday(contentYear,contentMonth,day)?600:400,color:isToday(contentYear,contentMonth,day)?ORANGE:TEXT3,background:isToday(contentYear,contentMonth,day)?ORANGE+"22":"transparent",borderRadius:3,padding:isToday(contentYear,contentMonth,day)?"1px 4px":0}}>{day}</span>
@@ -834,7 +868,13 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
                                 const imgs=getPostImages(post);
                                 const linked=post.campaign_id?campaigns.find(c=>c.id===post.campaign_id):null;
                                 return(
-                                  <div key={post.id} onClick={()=>openEditPost(post)} style={{display:"flex",alignItems:"center",gap:3,background:SURFACE2,borderRadius:3,padding:"2px 4px",cursor:"pointer",borderLeft:`2px solid ${PLATFORM_COLORS[post.platform]}`}}>
+                                  <div key={post.id}
+                                    draggable
+                                    onDragStart={e=>{ e.stopPropagation(); setDraggingPost(post); }}
+                                    onDragEnd={()=>{ setDraggingPost(null); setDragOver(null); }}
+                                    onClick={()=>openEditPost(post)}
+                                    style={{display:"flex",alignItems:"center",gap:3,background:SURFACE2,borderRadius:3,padding:"2px 4px",cursor:"grab",borderLeft:`2px solid ${PLATFORM_COLORS[post.platform]}`,opacity:draggingPost?.id===post.id?0.4:1}}
+                                  >
                                     {cover&&<img src={cover} alt="" style={{width:14,height:14,objectFit:"cover",borderRadius:2,flexShrink:0}}/>}
                                     <span style={{fontSize:9,color:TEXT3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{post.caption||"Post"}</span>
                                     {imgs.length>1&&<span style={{fontSize:8,color:TEXT3,flexShrink:0}}>⧉{imgs.length}</span>}
@@ -844,6 +884,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
                               })}
                               {dayPosts.length>3&&<div style={{fontSize:9,color:TEXT3}}>+{dayPosts.length-3}</div>}
                             </div>
+                            {isDragOver&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:ORANGE+"22",fontSize:10,color:ORANGE,pointerEvents:"none",borderRadius:5}}>Move here</div>}
                           </>)}
                         </div>
                       );
@@ -872,29 +913,30 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
                   <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6,alignItems:"start"}}>
                     {weekDays.map((d,i)=>{
                       const dayPosts=getPostsByDate(d);
-                      const isDrag=dragOver===`week-${i}`;
+                      const newDs=mkDate(d.getFullYear(),d.getMonth(),d.getDate());
+                      const isDragOver=dragOver===`week-${i}`&&draggingPost;
+                      const isFileDrop=dragOver===`week-${i}`&&!draggingPost;
                       return(
                         <div key={i}
                           onDragOver={e=>{e.preventDefault();setDragOver(`week-${i}`);}}
                           onDragLeave={()=>setDragOver(null)}
                           onDrop={async e=>{
                             e.preventDefault(); setDragOver(null);
+                            if(draggingPost){ await movePost(draggingPost,newDs); return; }
                             const file=e.dataTransfer.files[0];
                             if(file&&file.type.startsWith("image/")){
                               const url=await uploadImage(file);
                               if(!url) return;
-                              const ds=mkDate(d.getFullYear(),d.getMonth(),d.getDate());
-                              const{data}=await supabase.from("posts").insert({caption:"",platform:"Instagram",image_url:url,post_date:ds,created_by:currentUser.id}).select().single();
+                              const{data}=await supabase.from("posts").insert({caption:"",platform:"Instagram",image_url:url,post_date:newDs,created_by:currentUser.id}).select().single();
                               setPosts(p=>[...p,data]);
-                              // Also save to post_images
                               await supabase.from("post_images").insert({post_id:data.id,image_url:url,position:0});
                               setPostImagesMap(prev=>({...prev,[data.id]:[{url,image_url:url,id:"new",position:0}]}));
-                              setPostModal({day:d.getDate(),ds,editId:data.id});
-                              setPostForm({caption:"",platform:"Instagram",campaign_id:"",task_id:""});
+                              setPostModal({day:d.getDate(),ds:newDs,editId:data.id});
+                              setPostForm({caption:"",platform:"Instagram",account_id:"",account_handle:"",campaign_id:"",task_id:""});
                               setPostImages([{url,id:"new"}]);
                             }
                           }}
-                          style={{display:"flex",flexDirection:"column",gap:6,minHeight:120,background:isDrag?"#1a2218":"transparent",border:isDrag?`1px dashed ${ORANGE}`:"1px solid transparent",borderRadius:6,padding:4}}
+                          style={{display:"flex",flexDirection:"column",gap:6,minHeight:120,background:isDragOver?ORANGE+"11":isFileDrop?"#1a2218":"transparent",border:isDragOver?`1px dashed ${ORANGE}`:isFileDrop?`1px dashed #4a7a4a`:"1px solid transparent",borderRadius:6,padding:4,position:"relative"}}
                         >
                           <button onClick={()=>openAddPost(d.getDate(),d.getMonth(),d.getFullYear())} style={{background:"none",border:`1px dashed ${BORDER}`,color:TEXT3,borderRadius:5,padding:"4px",cursor:"pointer",fontSize:11,fontFamily:"'DM Sans',sans-serif",width:"100%",textAlign:"center"}}
                             onMouseEnter={e=>{e.currentTarget.style.borderColor=ORANGE;e.currentTarget.style.color=ORANGE;}}
@@ -905,7 +947,12 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
                             const linked=post.campaign_id?campaigns.find(c=>c.id===post.campaign_id):null;
                             const creator=post.created_by?members.find(m=>m.id===post.created_by):null;
                             return(
-                              <div key={post.id} style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:7,overflow:"hidden",borderTop:`3px solid ${PLATFORM_COLORS[post.platform]}`}}>
+                              <div key={post.id}
+                                draggable
+                                onDragStart={e=>{ e.stopPropagation(); setDraggingPost(post); }}
+                                onDragEnd={()=>{ setDraggingPost(null); setDragOver(null); }}
+                                style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:7,overflow:"hidden",borderTop:`3px solid ${PLATFORM_COLORS[post.platform]}`,opacity:draggingPost?.id===post.id?0.4:1,cursor:"grab"}}
+                              >
                                 <CarouselViewer images={imgs} style={{width:"100%"}} imgStyle={{aspectRatio:"1/1",objectFit:"cover"}}/>
                                 <div style={{padding:"7px 8px"}}>
                                   <div style={{fontSize:11,color:TEXT2,lineHeight:1.4,marginBottom:5,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>
@@ -936,7 +983,8 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
                               </div>
                             );
                           })}
-                          {isDrag&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:"#00000066",fontSize:10,color:ORANGE,pointerEvents:"none",borderRadius:6}}>Drop image</div>}
+                          {isDragOver&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:ORANGE+"22",fontSize:10,color:ORANGE,pointerEvents:"none",borderRadius:6}}>Move here</div>}
+                          {isFileDrop&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:"#00000066",fontSize:10,color:"#4a7a4a",pointerEvents:"none",borderRadius:6}}>Drop image</div>}
                         </div>
                       );
                     })}
