@@ -524,11 +524,13 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
 
   const [eventsChannelFilter,setEventsChannelFilter]=useState("All");
   const [calView,setCalView]=useState("month");
+  const [eventsView,setEventsView]=useState("month");
   const [contentYear,setContentYear]=useState(today.getFullYear());
   const [contentMonth,setContentMonth]=useState(today.getMonth());
   const [weekStart,setWeekStart]=useState(()=>{ const d=new Date(today); d.setDate(d.getDate()-d.getDay()); d.setHours(0,0,0,0); return d; });
   const [eventsYear,setEventsYear]=useState(today.getFullYear());
   const [eventsMonth,setEventsMonth]=useState(today.getMonth());
+  const [eventsWeekStart,setEventsWeekStart]=useState(()=>{ const d=new Date(today); d.setDate(d.getDate()-d.getDay()); d.setHours(0,0,0,0); return d; });
 
   const [postModal,setPostModal]=useState(null);
   const [postForm,setPostForm]=useState({caption:"",platform:"Instagram",account_id:"",account_handle:"",campaign_id:"",task_id:""});
@@ -606,6 +608,9 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
   const getPostsByDate=(d)=>{ const ds=mkDate(d.getFullYear(),d.getMonth(),d.getDate()); return posts.filter(p=>p.post_date===ds); };
   const prevEvents=()=>{ if(eventsMonth===0){setEventsMonth(11);setEventsYear(y=>y-1);}else setEventsMonth(m=>m-1); };
   const nextEvents=()=>{ if(eventsMonth===11){setEventsMonth(0);setEventsYear(y=>y+1);}else setEventsMonth(m=>m+1); };
+  const prevEventsWeek=()=>{ const d=new Date(eventsWeekStart); d.setDate(d.getDate()-7); setEventsWeekStart(d); };
+  const nextEventsWeek=()=>{ const d=new Date(eventsWeekStart); d.setDate(d.getDate()+7); setEventsWeekStart(d); };
+  const getEventsWeekDays=()=>{ const days=[]; for(let i=0;i<7;i++){ const d=new Date(eventsWeekStart); d.setDate(d.getDate()+i); days.push(d); } return days; };
 
   // ── Post modal ────────────────────────────────────────────────────────────
   const openAddPost=(day,month=contentMonth,year=contentYear)=>{
@@ -664,6 +669,12 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
 
   const getDayEventsAndTasks=(day)=>{
     const ds=mkDate(eventsYear,eventsMonth,day);
+    const dayEvents=events.filter(ev=>{ if(ev.event_date===ds) return true; if(ev.end_date&&ev.event_date<=ds&&ev.end_date>=ds) return true; return false; }).map(ev=>({...ev,_type:"event"}));
+    const dayTasks=tasks.filter(t=>t.due_date===ds&&(eventsChannelFilter==="All"||t.channel===eventsChannelFilter)).map(t=>({...t,_type:"task"}));
+    return [...dayEvents,...dayTasks];
+  };
+  const getDayEventsAndTasksByDate=(d)=>{
+    const ds=mkDate(d.getFullYear(),d.getMonth(),d.getDate());
     const dayEvents=events.filter(ev=>{ if(ev.event_date===ds) return true; if(ev.end_date&&ev.event_date<=ds&&ev.end_date>=ds) return true; return false; }).map(ev=>({...ev,_type:"event"}));
     const dayTasks=tasks.filter(t=>t.due_date===ds&&(eventsChannelFilter==="All"||t.channel===eventsChannelFilter)).map(t=>({...t,_type:"task"}));
     return [...dayEvents,...dayTasks];
@@ -938,28 +949,140 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
       )}
 
       {/* EVENTS & DEADLINES */}
-      {tab==="events"&&renderCalendar(
-        eventsYear,eventsMonth,prevEvents,nextEvents,
-        getDayEventsAndTasks,
-        (item)=>{
-          if(item._type==="task"){
-            const chColor=item.channel?CHANNEL_COLORS[item.channel]||TEXT3:TEXT3;
-            const assignee=item.assignee_id?members.find(m=>m.id===item.assignee_id):null;
-            return <div key={`task-${item.id}`} onClick={()=>openEditItem("tasks",item)} style={{display:"flex",alignItems:"center",gap:3,background:SURFACE2,borderRadius:3,padding:"2px 4px",cursor:"pointer",borderLeft:`2px solid ${chColor}`}}><span style={{fontSize:9,color:TEXT2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>📌 {item.name}</span>{assignee&&<div style={{width:8,height:8,borderRadius:"50%",background:assignee.color,flexShrink:0}}/>}</div>;
-          }
-          const c=getEventTypeColor(item.event_type);
-          return <div key={`event-${item.id}`} onClick={()=>openEditEvent(item)} style={{display:"flex",alignItems:"center",gap:3,background:SURFACE2,borderRadius:3,padding:"2px 4px",cursor:"pointer",borderLeft:`2px solid ${c}`}}><span style={{fontSize:9,color:TEXT2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{item.title}</span></div>;
-        },
-        openAddEvent,
-        <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap",flex:1}}>
-            {eventTypes.map(t=><span key={t.id} style={{fontSize:11,color:t.color,border:`1px solid ${t.color}44`,borderRadius:4,padding:"2px 8px"}}>{t.name}</span>)}
-            <button onClick={()=>setShowTypeManager(true)} style={{background:"none",border:`1px solid ${BORDER}`,color:TEXT3,borderRadius:4,padding:"2px 10px",cursor:"pointer",fontSize:11,fontFamily:"'DM Sans',sans-serif"}}>+ Tags</button>
+      {tab==="events"&&(
+        <div style={{padding:pad}}>
+          {/* Header: nav + view toggle */}
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,gap:8,flexWrap:"wrap"}}>
+            <div style={{display:"flex",alignItems:"center",gap:12}}>
+              <button onClick={eventsView==="month"?prevEvents:prevEventsWeek} style={{background:"none",border:`1px solid ${BORDER}`,color:TEXT2,borderRadius:6,width:36,height:36,cursor:"pointer",fontSize:20,display:"flex",alignItems:"center",justifyContent:"center"}}>‹</button>
+              <span style={{fontFamily:"'Playfair Display',serif",fontSize:isMobile?16:20,color:TEXT1,minWidth:isMobile?140:200,textAlign:"center"}}>
+                {eventsView==="month"
+                  ?`${isMobile?MONTHS_SHORT[eventsMonth]:MONTHS[eventsMonth]} ${eventsYear}`
+                  :(()=>{ const days=getEventsWeekDays(); const s=days[0]; const e=days[6]; return s.getMonth()===e.getMonth()?`${MONTHS_SHORT[s.getMonth()]} ${s.getDate()}–${e.getDate()}, ${s.getFullYear()}`:`${MONTHS_SHORT[s.getMonth()]} ${s.getDate()} – ${MONTHS_SHORT[e.getMonth()]} ${e.getDate()}, ${e.getFullYear()}`; })()
+                }
+              </span>
+              <button onClick={eventsView==="month"?nextEvents:nextEventsWeek} style={{background:"none",border:`1px solid ${BORDER}`,color:TEXT2,borderRadius:6,width:36,height:36,cursor:"pointer",fontSize:20,display:"flex",alignItems:"center",justifyContent:"center"}}>›</button>
+            </div>
+            <div style={{display:"flex",gap:2,background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:6,padding:3}}>
+              {["month","week"].map(v=><button key={v} onClick={()=>setEventsView(v)} style={{background:eventsView===v?SURFACE2:"transparent",border:eventsView===v?`1px solid ${BORDER2}`:"1px solid transparent",color:eventsView===v?TEXT1:TEXT3,borderRadius:4,padding:"5px 14px",cursor:"pointer",fontSize:12,fontFamily:"'DM Sans',sans-serif",fontWeight:eventsView===v?500:400,textTransform:"capitalize"}}>{v}</button>)}
+            </div>
           </div>
-          <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}>
-            <span style={{fontSize:10,color:TEXT3}}>Tasks:</span>
-            {["All",...CHANNELS].map(ch=><button key={ch} onClick={()=>setEventsChannelFilter(ch)} style={{fontSize:10,color:eventsChannelFilter===ch?(ch==="All"?TEXT1:CHANNEL_COLORS[ch]||TEXT1):TEXT3,background:eventsChannelFilter===ch?SURFACE2:"transparent",border:`1px solid ${eventsChannelFilter===ch?(ch==="All"?BORDER2:CHANNEL_COLORS[ch]||BORDER2):BORDER}`,borderRadius:4,padding:"2px 7px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{ch}</button>)}
+
+          {/* Filter bar */}
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:16}}>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",flex:1}}>
+              {eventTypes.map(t=><span key={t.id} style={{fontSize:11,color:t.color,border:`1px solid ${t.color}44`,borderRadius:4,padding:"2px 8px"}}>{t.name}</span>)}
+              <button onClick={()=>setShowTypeManager(true)} style={{background:"none",border:`1px solid ${BORDER}`,color:TEXT3,borderRadius:4,padding:"2px 10px",cursor:"pointer",fontSize:11,fontFamily:"'DM Sans',sans-serif"}}>+ Tags</button>
+            </div>
+            <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}>
+              <span style={{fontSize:10,color:TEXT3}}>Tasks:</span>
+              {["All",...CHANNELS].map(ch=><button key={ch} onClick={()=>setEventsChannelFilter(ch)} style={{fontSize:10,color:eventsChannelFilter===ch?(ch==="All"?TEXT1:CHANNEL_COLORS[ch]||TEXT1):TEXT3,background:eventsChannelFilter===ch?SURFACE2:"transparent",border:`1px solid ${eventsChannelFilter===ch?(ch==="All"?BORDER2:CHANNEL_COLORS[ch]||BORDER2):BORDER}`,borderRadius:4,padding:"2px 7px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{ch}</button>)}
+            </div>
           </div>
+
+          {/* MONTH VIEW */}
+          {eventsView==="month"&&(()=>{
+            const daysInMonth=getDaysInMonth(eventsYear,eventsMonth);
+            const firstDay=getFirstDay(eventsYear,eventsMonth);
+            const cells=[];
+            for(let i=0;i<firstDay;i++) cells.push(null);
+            for(let d=1;d<=daysInMonth;d++) cells.push(d);
+            return(
+              <div style={{overflowX:isMobile?"auto":"visible"}}>
+                <div style={{minWidth:isMobile?420:"auto"}}>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:2}}>
+                    {DAYS.map(d=><div key={d} style={{textAlign:"center",fontSize:10,color:TEXT3,letterSpacing:"0.08em",textTransform:"uppercase",padding:"4px 0"}}>{isMobile?d[0]:d}</div>)}
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
+                    {cells.map((day,i)=>{
+                      const dayItems=day?getDayEventsAndTasks(day):[];
+                      return(
+                        <div key={i} style={{minHeight:isMobile?90:110,background:day?SURFACE:"transparent",border:day?`1px solid ${BORDER}`:"none",borderRadius:5,padding:day?"6px":0,position:"relative",overflow:"hidden"}}>
+                          {day&&(<>
+                            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                              <span style={{fontSize:11,fontWeight:isToday(eventsYear,eventsMonth,day)?600:400,color:isToday(eventsYear,eventsMonth,day)?ORANGE:TEXT3,background:isToday(eventsYear,eventsMonth,day)?ORANGE+"22":"transparent",borderRadius:3,padding:isToday(eventsYear,eventsMonth,day)?"1px 4px":0}}>{day}</span>
+                              <button onClick={()=>openAddEvent(day)} style={{background:"none",border:`1px solid ${BORDER}`,color:TEXT3,borderRadius:3,width:16,height:16,cursor:"pointer",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>+</button>
+                            </div>
+                            <div style={{display:"flex",flexDirection:"column",gap:2}}>
+                              {dayItems.slice(0,3).map(item=>{
+                                if(item._type==="task"){ const chColor=item.channel?CHANNEL_COLORS[item.channel]||TEXT3:TEXT3; const assignee=item.assignee_id?members.find(m=>m.id===item.assignee_id):null; return <div key={`task-${item.id}`} onClick={()=>openEditItem("tasks",item)} style={{display:"flex",alignItems:"center",gap:3,background:SURFACE2,borderRadius:3,padding:"2px 4px",cursor:"pointer",borderLeft:`2px solid ${chColor}`}}><span style={{fontSize:9,color:TEXT2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>📌 {item.name}</span>{assignee&&<div style={{width:8,height:8,borderRadius:"50%",background:assignee.color,flexShrink:0}}/>}</div>; }
+                                const c=getEventTypeColor(item.event_type);
+                                return <div key={`event-${item.id}`} onClick={()=>openEditEvent(item)} style={{display:"flex",alignItems:"center",gap:3,background:SURFACE2,borderRadius:3,padding:"2px 4px",cursor:"pointer",borderLeft:`2px solid ${c}`}}><span style={{fontSize:9,color:TEXT2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{item.title}</span></div>;
+                              })}
+                              {dayItems.length>3&&<div style={{fontSize:9,color:TEXT3}}>+{dayItems.length-3}</div>}
+                            </div>
+                          </>)}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* WEEK VIEW */}
+          {eventsView==="week"&&(()=>{
+            const weekDays=getEventsWeekDays();
+            return(
+              <div style={{overflowX:isMobile?"auto":"visible"}}>
+                <div style={{minWidth:isMobile?500:"auto"}}>
+                  {/* Day headers */}
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6,marginBottom:6}}>
+                    {weekDays.map((d,i)=>(
+                      <div key={i} style={{textAlign:"center",padding:"6px 4px",background:isTodayDate(d)?ORANGE+"22":SURFACE,border:`1px solid ${isTodayDate(d)?ORANGE:BORDER}`,borderRadius:6}}>
+                        <div style={{fontSize:10,color:isTodayDate(d)?ORANGE:TEXT3,textTransform:"uppercase",letterSpacing:"0.08em"}}>{DAYS[d.getDay()]}</div>
+                        <div style={{fontSize:isMobile?14:18,fontWeight:600,color:isTodayDate(d)?ORANGE:TEXT1,fontFamily:"'Playfair Display',serif"}}>{d.getDate()}</div>
+                        <div style={{fontSize:10,color:TEXT3}}>{MONTHS_SHORT[d.getMonth()]}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Event/task columns */}
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6,alignItems:"start"}}>
+                    {weekDays.map((d,i)=>{
+                      const dayItems=getDayEventsAndTasksByDate(d);
+                      return(
+                        <div key={i} style={{display:"flex",flexDirection:"column",gap:5,minHeight:80}}>
+                          <button onClick={()=>{ setEventsMonth(d.getMonth()); setEventsYear(d.getFullYear()); setTimeout(()=>openAddEvent(d.getDate()),10); }} style={{background:"none",border:`1px dashed ${BORDER}`,color:TEXT3,borderRadius:5,padding:"4px",cursor:"pointer",fontSize:11,fontFamily:"'DM Sans',sans-serif",width:"100%",textAlign:"center"}}
+                            onMouseEnter={e=>{e.currentTarget.style.borderColor=ORANGE;e.currentTarget.style.color=ORANGE;}}
+                            onMouseLeave={e=>{e.currentTarget.style.borderColor=BORDER;e.currentTarget.style.color=TEXT3;}}
+                          >+ Add</button>
+                          {dayItems.map(item=>{
+                            if(item._type==="task"){
+                              const chColor=item.channel?CHANNEL_COLORS[item.channel]||TEXT3:TEXT3;
+                              const assignee=item.assignee_id?members.find(m=>m.id===item.assignee_id):null;
+                              return(
+                                <div key={`task-${item.id}`} onClick={()=>openEditItem("tasks",item)} style={{background:SURFACE,border:`1px solid ${chColor}44`,borderLeft:`3px solid ${chColor}`,borderRadius:6,padding:"8px 10px",cursor:"pointer"}}>
+                                  <div style={{fontSize:11,color:TEXT2,marginBottom:4,lineHeight:1.3}}>📌 {item.name}</div>
+                                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:4}}>
+                                    <span style={{fontSize:10,color:chColor}}>{item.channel||"Task"}</span>
+                                    {assignee&&<Avatar name={assignee.name} color={assignee.color} size={14}/>}
+                                  </div>
+                                </div>
+                              );
+                            }
+                            const c=getEventTypeColor(item.event_type);
+                            const assignee=item.assignee_id?members.find(m=>m.id===item.assignee_id):null;
+                            return(
+                              <div key={`event-${item.id}`} onClick={()=>openEditEvent(item)} style={{background:SURFACE,border:`1px solid ${c}44`,borderLeft:`3px solid ${c}`,borderRadius:6,padding:"8px 10px",cursor:"pointer"}}>
+                                <div style={{fontSize:12,color:TEXT1,fontWeight:500,marginBottom:4,lineHeight:1.3}}>{item.title}</div>
+                                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:4}}>
+                                  <span style={{fontSize:10,color:c}}>{item.event_type}</span>
+                                  {item.location&&<span style={{fontSize:9,color:TEXT3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:60}}>📍{item.location}</span>}
+                                </div>
+                                {assignee&&<div style={{display:"flex",alignItems:"center",gap:4,marginTop:4}}><Avatar name={assignee.name} color={assignee.color} size={14}/><span style={{fontSize:10,color:TEXT3}}>{assignee.name.split(" ")[0]}</span></div>}
+                              </div>
+                            );
+                          })}
+                          {dayItems.length===0&&<div style={{fontSize:10,color:TEXT3,textAlign:"center",padding:"8px 0",opacity:0.5}}>—</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 
