@@ -872,9 +872,10 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
                                     draggable
                                     onDragStart={e=>{ e.stopPropagation(); setDraggingPost(post); }}
                                     onDragEnd={()=>{ setDraggingPost(null); setDragOver(null); }}
-                                    onClick={()=>openEditPost(post)}
-                                    style={{display:"flex",alignItems:"center",gap:3,background:SURFACE2,borderRadius:3,padding:"2px 4px",cursor:"grab",borderLeft:`2px solid ${PLATFORM_COLORS[post.platform]}`,opacity:draggingPost?.id===post.id?0.4:1}}
+                                    onClick={()=>{ if(!draggingPost) openEditPost(post); }}
+                                    style={{display:"flex",alignItems:"center",gap:3,background:SURFACE2,borderRadius:3,padding:"2px 4px",cursor:"grab",borderLeft:`2px solid ${PLATFORM_COLORS[post.platform]}`,opacity:draggingPost?.id===post.id?0.4:1,userSelect:"none"}}
                                   >
+                                    <span style={{fontSize:8,color:TEXT3,flexShrink:0,lineHeight:1}}>⠿</span>
                                     {cover&&<img src={cover} alt="" style={{width:14,height:14,objectFit:"cover",borderRadius:2,flexShrink:0}}/>}
                                     <span style={{fontSize:9,color:TEXT3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{post.caption||"Post"}</span>
                                     {imgs.length>1&&<span style={{fontSize:8,color:TEXT3,flexShrink:0}}>⧉{imgs.length}</span>}
@@ -951,7 +952,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
                                 draggable
                                 onDragStart={e=>{ e.stopPropagation(); setDraggingPost(post); }}
                                 onDragEnd={()=>{ setDraggingPost(null); setDragOver(null); }}
-                                style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:7,overflow:"hidden",borderTop:`3px solid ${PLATFORM_COLORS[post.platform]}`,opacity:draggingPost?.id===post.id?0.4:1,cursor:"grab"}}
+                                style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:7,overflow:"hidden",borderTop:`3px solid ${PLATFORM_COLORS[post.platform]}`,opacity:draggingPost?.id===post.id?0.4:1,cursor:"grab",userSelect:"none"}}
                               >
                                 <CarouselViewer images={imgs} style={{width:"100%"}} imgStyle={{aspectRatio:"1/1",objectFit:"cover"}}/>
                                 <div style={{padding:"7px 8px"}}>
@@ -970,11 +971,11 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
                                     </div>
                                   </div>
                                   <div style={{display:"flex",gap:4}}>
-                                    <button onClick={e=>{e.stopPropagation();setPreviewPost(post);}} style={{flex:1,background:SURFACE2,border:`1px solid ${BORDER}`,color:TEXT2,borderRadius:4,padding:"4px 0",cursor:"pointer",fontSize:10,fontFamily:"'DM Sans',sans-serif"}}
+                                    <button onClick={e=>{e.stopPropagation(); if(!draggingPost) setPreviewPost(post);}} style={{flex:1,background:SURFACE2,border:`1px solid ${BORDER}`,color:TEXT2,borderRadius:4,padding:"4px 0",cursor:"pointer",fontSize:10,fontFamily:"'DM Sans',sans-serif"}}
                                       onMouseEnter={e=>{e.currentTarget.style.borderColor=ORANGE;e.currentTarget.style.color=ORANGE;}}
                                       onMouseLeave={e=>{e.currentTarget.style.borderColor=BORDER;e.currentTarget.style.color=TEXT2;}}
                                     >Preview</button>
-                                    <button onClick={e=>{e.stopPropagation();openEditPost(post);}} style={{flex:1,background:SURFACE2,border:`1px solid ${BORDER}`,color:TEXT2,borderRadius:4,padding:"4px 0",cursor:"pointer",fontSize:10,fontFamily:"'DM Sans',sans-serif"}}
+                                    <button onClick={e=>{e.stopPropagation(); if(!draggingPost) openEditPost(post);}} style={{flex:1,background:SURFACE2,border:`1px solid ${BORDER}`,color:TEXT2,borderRadius:4,padding:"4px 0",cursor:"pointer",fontSize:10,fontFamily:"'DM Sans',sans-serif"}}
                                       onMouseEnter={e=>{e.currentTarget.style.borderColor=BORDER2;e.currentTarget.style.color=TEXT1;}}
                                       onMouseLeave={e=>{e.currentTarget.style.borderColor=BORDER;e.currentTarget.style.color=TEXT2;}}
                                     >Edit</button>
