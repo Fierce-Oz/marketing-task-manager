@@ -1005,7 +1005,13 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
                             </div>
                             <div style={{display:"flex",flexDirection:"column",gap:2}}>
                               {dayItems.slice(0,3).map(item=>{
-                                if(item._type==="task"){ const chColor=item.channel?CHANNEL_COLORS[item.channel]||TEXT3:TEXT3; const assignee=item.assignee_id?members.find(m=>m.id===item.assignee_id):null; return <div key={`task-${item.id}`} onClick={()=>openEditItem("tasks",item)} style={{display:"flex",alignItems:"center",gap:3,background:SURFACE2,borderRadius:3,padding:"2px 4px",cursor:"pointer",borderLeft:`2px solid ${chColor}`}}><span style={{fontSize:9,color:TEXT2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>📌 {item.name}</span>{assignee&&<div style={{width:8,height:8,borderRadius:"50%",background:assignee.color,flexShrink:0}}/>}</div>; }
+                                if(item._type==="task"){
+                                  const chColor=item.channel?CHANNEL_COLORS[item.channel]||TEXT3:TEXT3;
+                                  const statusBg=item.status==="Complete"?"#0d2a14":item.status==="In Progress"?"#2a2200":item.status==="Review"?"#0d1a2a":"#2a0a0a";
+                                  const statusBorder=item.status==="Complete"?"#4a9e60":item.status==="In Progress"?"#c47a30":item.status==="Review"?"#4a8cc4":"#c43030";
+                                  const assignee=item.assignee_id?members.find(m=>m.id===item.assignee_id):null;
+                                  return <div key={`task-${item.id}`} onClick={()=>openEditItem("tasks",item)} style={{display:"flex",alignItems:"center",gap:3,background:statusBg,borderRadius:3,padding:"2px 4px",cursor:"pointer",borderLeft:`2px solid ${statusBorder}`}}><span style={{fontSize:9,color:TEXT2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>📌 {item.name}</span>{assignee&&<div style={{width:8,height:8,borderRadius:"50%",background:assignee.color,flexShrink:0}}/>}</div>;
+                                }
                                 const c=getEventTypeColor(item.event_type);
                                 return <div key={`event-${item.id}`} onClick={()=>openEditEvent(item)} style={{display:"flex",alignItems:"center",gap:3,background:SURFACE2,borderRadius:3,padding:"2px 4px",cursor:"pointer",borderLeft:`2px solid ${c}`}}><span style={{fontSize:9,color:TEXT2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{item.title}</span></div>;
                               })}
@@ -1050,9 +1056,11 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
                           {dayItems.map(item=>{
                             if(item._type==="task"){
                               const chColor=item.channel?CHANNEL_COLORS[item.channel]||TEXT3:TEXT3;
+                              const statusBg=item.status==="Complete"?"#0d2a14":item.status==="In Progress"?"#2a2200":item.status==="Review"?"#0d1a2a":"#2a0a0a";
+                              const statusBorder=item.status==="Complete"?"#4a9e60":item.status==="In Progress"?"#c47a30":item.status==="Review"?"#4a8cc4":"#c43030";
                               const assignee=item.assignee_id?members.find(m=>m.id===item.assignee_id):null;
                               return(
-                                <div key={`task-${item.id}`} onClick={()=>openEditItem("tasks",item)} style={{background:SURFACE,border:`1px solid ${chColor}44`,borderLeft:`3px solid ${chColor}`,borderRadius:6,padding:"8px 10px",cursor:"pointer"}}>
+                                <div key={`task-${item.id}`} onClick={()=>openEditItem("tasks",item)} style={{background:statusBg,border:`1px solid ${statusBorder}44`,borderLeft:`3px solid ${statusBorder}`,borderRadius:6,padding:"8px 10px",cursor:"pointer"}}>
                                   <div style={{fontSize:11,color:TEXT2,marginBottom:4,lineHeight:1.3}}>📌 {item.name}</div>
                                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:4}}>
                                     <span style={{fontSize:10,color:chColor}}>{item.channel||"Task"}</span>
