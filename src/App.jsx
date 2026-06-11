@@ -692,12 +692,12 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
 
   const listConfig={ programs:{label:"Programs",data:programs,setData:setPrograms,table:"programs"}, campaigns:{label:"Campaigns",data:campaigns,setData:setCampaigns,table:"campaigns"}, tasks:{label:"Tasks",data:tasks,setData:setTasks,table:"tasks"} };
   const openNewItem=()=>{ const defaults={ programs:{name:"",status:"Not Started",description:""}, campaigns:{name:"",status:"Not Started",priority:"Medium",program_id:"",description:""}, tasks:{name:"",status:"Not Started",priority:"Medium",campaign_id:"",due_date:"",description:"",assignee_id:"",channel:""} }; setItemModal({type:activeList}); setItemForm(defaults[activeList]); };
-  const openEditItem=(type,item)=>{ setItemModal({type,editId:item.id}); setItemForm({...item}); };
+  const openEditItem=(type,item)=>{ const{_type,...cleanItem}=item; setItemModal({type,editId:cleanItem.id}); setItemForm({...cleanItem}); };
   const saveItem=async()=>{
     const{table,setData,data}=listConfig[itemModal.type];
     const payload={...itemForm};
     ["program_id","campaign_id","assignee_id","due_date","channel"].forEach(k=>{ if(payload[k]==="") payload[k]=null; });
-    delete payload.id; delete payload.created_at;
+    delete payload.id; delete payload.created_at; delete payload._type;
     if(itemModal.editId){ const{data:updated}=await supabase.from(table).update(payload).eq("id",itemModal.editId).select().single(); setData(data.map(i=>i.id===itemModal.editId?updated:i)); }
     else{ const{data:created}=await supabase.from(table).insert(payload).select().single(); setData([...data,created]); }
     setItemModal(null);
