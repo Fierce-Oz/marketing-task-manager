@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { supabase } from "./supabase";
 
-const ACCESS_PASSWORD = "F!ercearms2026";
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
@@ -371,7 +370,7 @@ function ProfileModal({currentUser,setCurrentUser,onClose,isMobile}){
   const [name,setName]=useState(currentUser.name||"");
   const [saving,setSaving]=useState(false);
   const [msg,setMsg]=useState("");
-  const save=async()=>{ setSaving(true); const{data,error}=await supabase.from("members").update({email:email.trim(),name:name.trim()}).eq("id",currentUser.id).select().single(); setSaving(false); if(error){setMsg("Error saving."); return;} const updated={...currentUser,...data}; localStorage.setItem("cp_user",JSON.stringify(updated)); setCurrentUser(updated); setMsg("Saved!"); setTimeout(()=>onClose(),800); };
+  const save=async()=>{ setSaving(true); const{data,error}=await supabase.from("members").update({email:email.trim(),name:name.trim()}).eq("id",currentUser.id).select().single(); setSaving(false); if(error){setMsg("Error saving."); return;} setCurrentUser({...currentUser,...data}); setMsg("Saved!"); setTimeout(()=>onClose(),800); };
   return(
     <ModalOverlay onClose={onClose} isMobile={isMobile}>
       <div style={{fontFamily:"'Playfair Display',serif",fontSize:20,marginBottom:4,color:TEXT1}}>Edit Profile</div>
@@ -453,43 +452,104 @@ function SocialAccountManager({socialAccounts,setSocialAccounts,onClose,isMobile
   );
 }
 
+// ── Auth Screen ───────────────────────────────────────────────────────────────
 function AuthScreen({onAuth}){
   const isMobile=useIsMobile();
-  const [mode,setMode]=useState("login");
-  const [pw,setPw]=useState("");
-  const [name,setName]=useState("");
+  const [mode,setMode]=useState("login"); // login | signup | forgot
   const [email,setEmail]=useState("");
+  const [password,setPassword]=useState("");
+  const [name,setName]=useState("");
   const [role,setRole]=useState("Member");
   const [err,setErr]=useState("");
-  const [members,setMembers]=useState([]);
-  const [loading,setLoading]=useState(true);
-  useEffect(()=>{ supabase.from("members").select("*").order("created_at").then(({data})=>{ setMembers(data||[]); setLoading(false); }); },[]);
-  const handleLogin=()=>{ if(pw!==ACCESS_PASSWORD){setErr("Incorrect password."); return;} if(members.length===0){setMode("register"); setErr("No accounts yet — create yours first."); return;} setErr("Password accepted — who are you?"); setMode("pick"); };
-  const handleRegister=async()=>{ if(pw!==ACCESS_PASSWORD){setErr("Incorrect password."); return;} if(!name.trim()){setErr("Enter your name."); return;} if(members.find(m=>m.name.toLowerCase()===name.trim().toLowerCase())){setErr("That name is taken."); return;} const color=MEMBER_COLORS[members.length%MEMBER_COLORS.length]; const{data,error}=await supabase.from("members").insert({name:name.trim(),email:email.trim(),role,color}).select().single(); if(error){setErr("Error creating account."); return;} onAuth(data); };
-  if(loading) return <div style={{minHeight:"100vh",background:BG,display:"flex",alignItems:"center",justifyContent:"center",color:TEXT3,fontFamily:"'DM Sans',sans-serif"}}>Loading...</div>;
+  const [msg,setMsg]=useState("");
+  const [loading,setLoading]=useState(false);
+
+  const handleLogin=async()=>{
+    if(!email.trim()||!password){setErr("Enter your email and password."); return;}
+    setLoading(true); setErr("");
+    const{data,error}=await supabase.auth.signInWithPassword({email:email.trim(),password});
+    setLoading(false);
+    if(error){setErr(error.message); return;}
+    // Fetch member profile
+    const{data:member}=await supabase.from("members").select("*").eq("auth_user_id",data.user.id).single();
+    if(member) onAuth(member);
+    else setErr("Account found but no profile exists. Contact your admin.");
+  };
+
+  const handleSignup=async()=>{
+    if(!email.trim()||!password||!name.trim()){setErr("Fill in all fields."); return;}
+    if(password.length<8){setErr("Password must be at least 8 characters."); return;}
+    setLoading(true); setErr("");
+    const{data,error}=await supabase.auth.signUp({
+      email:email.trim(),
+      password,
+      options:{data:{name:name.trim(),role}}
+    });
+    setLoading(false);
+    if(error){setErr(error.message); return;}
+    setMsg("Check your email for a confirmation link, then come back to log in.");
+    setMode("login");
+  };
+
+  const handleForgot=async()=>{
+    if(!email.trim()){setErr("Enter your email address."); return;}
+    setLoading(true); setErr("");
+    const{error}=await supabase.auth.resetPasswordForEmail(email.trim(),{redirectTo:"https://fiercetask.vercel.app"});
+    setLoading(false);
+    if(error){setErr(error.message); return;}
+    setMsg("Password reset email sent — check your inbox.");
+    setMode("login");
+  };
+
   return(
     <div style={{minHeight:"100vh",background:BG,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans',sans-serif",padding:"20px 16px"}}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:wght@700&display=swap" rel="stylesheet"/>
       <div style={{width:"100%",maxWidth:420,background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:14,padding:isMobile?"24px 20px":40,boxShadow:"0 24px 80px #00000099"}}>
         <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
           <div style={{width:4,height:32,background:ORANGE,borderRadius:2}}/>
-          <div><div style={{fontFamily:"'Playfair Display',serif",fontSize:isMobile?18:22,color:TEXT1,lineHeight:1.2}}>Sales & Marketing</div><div style={{fontFamily:"'Playfair Display',serif",fontSize:isMobile?18:22,color:ORANGE,lineHeight:1.2}}>Task Manager</div></div>
-        </div>
-        <div style={{fontSize:11,color:TEXT3,marginBottom:24,letterSpacing:"0.1em",textTransform:"uppercase"}}>Team Access · Fierce Firearms</div>
-        {mode==="pick"&&(<>
-          <div style={{fontSize:14,color:TEXT2,marginBottom:14}}>Who are you?</div>
-          <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
-            {members.map(m=>(<button key={m.id} onClick={()=>onAuth(m)} style={{display:"flex",alignItems:"center",gap:12,background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:10,padding:"12px 14px",cursor:"pointer",color:TEXT1,fontFamily:"'DM Sans',sans-serif",fontSize:14,textAlign:"left",width:"100%"}}><Avatar name={m.name} color={m.color} size={36}/><div><div style={{fontWeight:500}}>{m.name}</div><div style={{fontSize:12,color:TEXT3}}>{m.role}{m.email?` · ${m.email}`:""}</div></div></button>))}
+          <div>
+            <div style={{fontFamily:"'Playfair Display',serif",fontSize:isMobile?18:22,color:TEXT1,lineHeight:1.2}}>Sales & Marketing</div>
+            <div style={{fontFamily:"'Playfair Display',serif",fontSize:isMobile?18:22,color:ORANGE,lineHeight:1.2}}>Task Manager</div>
           </div>
-          <button onClick={()=>{setMode("register");setErr("");}} style={{background:"none",border:"none",color:ORANGE,fontSize:13,cursor:"pointer",padding:0,fontFamily:"'DM Sans',sans-serif"}}>+ Create new account</button>
+        </div>
+        <div style={{fontSize:11,color:TEXT3,marginBottom:24,letterSpacing:"0.1em",textTransform:"uppercase"}}>Fierce Firearms · Team Access</div>
+
+        {msg&&<div style={{fontSize:13,color:"#4a9e60",background:"#0d2a1488",border:"1px solid #1a3020",borderRadius:8,padding:"10px 14px",marginBottom:16}}>{msg}</div>}
+        {err&&<div style={{fontSize:13,color:"#c47a30",background:"#2a220088",border:"1px solid #3a2a18",borderRadius:8,padding:"10px 14px",marginBottom:16}}>{err}</div>}
+
+        {mode==="login"&&(<>
+          <FL>Email</FL>
+          <input type="email" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>{if(e.key==="Enter") handleLogin();}} placeholder="you@fiercearms.com" style={{...inputStyle,marginBottom:12}}/>
+          <FL>Password</FL>
+          <input type="password" value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>{if(e.key==="Enter") handleLogin();}} placeholder="••••••••" style={{...inputStyle,marginBottom:20}}/>
+          <OrangeBtn onClick={handleLogin} style={{width:"100%",padding:"13px 0",fontSize:15,marginBottom:14}}>{loading?"Signing in...":"Sign In"}</OrangeBtn>
+          <div style={{display:"flex",justifyContent:"space-between"}}>
+            <button onClick={()=>{setMode("signup");setErr("");setMsg("");}} style={{background:"none",border:"none",color:ORANGE,fontSize:13,cursor:"pointer",padding:0,fontFamily:"'DM Sans',sans-serif"}}>Create account</button>
+            <button onClick={()=>{setMode("forgot");setErr("");setMsg("");}} style={{background:"none",border:"none",color:TEXT3,fontSize:13,cursor:"pointer",padding:0,fontFamily:"'DM Sans',sans-serif"}}>Forgot password?</button>
+          </div>
         </>)}
-        {(mode==="login"||mode==="register")&&(<>
-          <FL>Team Password</FL>
-          <input type="password" value={pw} onChange={e=>setPw(e.target.value)} onKeyDown={e=>{if(e.key==="Enter") mode==="login"?handleLogin():handleRegister();}} placeholder="Enter team password" style={{...inputStyle,marginBottom:16}}/>
-          {mode==="register"&&(<><FL>Your Name</FL><input value={name} onChange={e=>setName(e.target.value)} placeholder="Full name" style={{...inputStyle,marginBottom:12}}/><FL>Email Address</FL><input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@fiercearms.com" style={{...inputStyle,marginBottom:12}}/><FL>Role</FL><select value={role} onChange={e=>setRole(e.target.value)} style={{...inputStyle,marginBottom:20}}>{["Admin","Manager","Member","Contractor"].map(r=><option key={r}>{r}</option>)}</select></>)}
-          {err&&<div style={{fontSize:13,color:"#c47a30",marginBottom:12}}>{err}</div>}
-          <OrangeBtn onClick={mode==="login"?handleLogin:handleRegister} style={{width:"100%",marginBottom:14,padding:"13px 0",fontSize:15}}>{mode==="login"?"Enter":"Create Account & Enter"}</OrangeBtn>
-          {mode==="login"?<button onClick={()=>{setMode("register");setErr("");}} style={{background:"none",border:"none",color:ORANGE,fontSize:13,cursor:"pointer",padding:0,fontFamily:"'DM Sans',sans-serif"}}>New here? Create an account</button>:<button onClick={()=>{setMode("login");setErr("");}} style={{background:"none",border:"none",color:TEXT3,fontSize:13,cursor:"pointer",padding:0,fontFamily:"'DM Sans',sans-serif"}}>Back to login</button>}
+
+        {mode==="signup"&&(<>
+          <FL>Your Name</FL>
+          <input value={name} onChange={e=>setName(e.target.value)} placeholder="Full name" style={{...inputStyle,marginBottom:12}}/>
+          <FL>Email</FL>
+          <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@fiercearms.com" style={{...inputStyle,marginBottom:12}}/>
+          <FL>Password</FL>
+          <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Min 8 characters" style={{...inputStyle,marginBottom:12}}/>
+          <FL>Role</FL>
+          <select value={role} onChange={e=>setRole(e.target.value)} style={{...inputStyle,marginBottom:20}}>
+            {["Admin","Manager","Member","Contractor"].map(r=><option key={r}>{r}</option>)}
+          </select>
+          <OrangeBtn onClick={handleSignup} style={{width:"100%",padding:"13px 0",fontSize:15,marginBottom:14}}>{loading?"Creating account...":"Create Account"}</OrangeBtn>
+          <button onClick={()=>{setMode("login");setErr("");setMsg("");}} style={{background:"none",border:"none",color:TEXT3,fontSize:13,cursor:"pointer",padding:0,fontFamily:"'DM Sans',sans-serif"}}>Back to sign in</button>
+        </>)}
+
+        {mode==="forgot"&&(<>
+          <div style={{fontSize:13,color:TEXT2,marginBottom:16}}>Enter your email and we'll send a reset link.</div>
+          <FL>Email</FL>
+          <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@fiercearms.com" style={{...inputStyle,marginBottom:20}}/>
+          <OrangeBtn onClick={handleForgot} style={{width:"100%",padding:"13px 0",fontSize:15,marginBottom:14}}>{loading?"Sending...":"Send Reset Link"}</OrangeBtn>
+          <button onClick={()=>{setMode("login");setErr("");setMsg("");}} style={{background:"none",border:"none",color:TEXT3,fontSize:13,cursor:"pointer",padding:0,fontFamily:"'DM Sans',sans-serif"}}>Back to sign in</button>
         </>)}
       </div>
     </div>
@@ -497,11 +557,35 @@ function AuthScreen({onAuth}){
 }
 
 export default function App(){
-  const [currentUser,setCurrentUser]=useState(()=>{ try{ const s=localStorage.getItem("cp_user"); return s?JSON.parse(s):null; }catch(e){ return null; } });
-  const handleAuth=(user)=>{ localStorage.setItem("cp_user",JSON.stringify(user)); setCurrentUser(user); };
-  const handleLogout=()=>{ localStorage.removeItem("cp_user"); setCurrentUser(null); };
+  const [currentUser,setCurrentUser]=useState(null);
+  const [authChecked,setAuthChecked]=useState(false);
+
+  useEffect(()=>{
+    // Check existing session on load
+    supabase.auth.getSession().then(async({data:{session}})=>{
+      if(session){
+        const{data:member}=await supabase.from("members").select("*").eq("auth_user_id",session.user.id).single();
+        if(member) setCurrentUser(member);
+      }
+      setAuthChecked(true);
+    });
+    // Listen for auth changes
+    const{data:{subscription}}=supabase.auth.onAuthStateChange(async(event,session)=>{
+      if(event==="SIGNED_OUT"){ setCurrentUser(null); }
+      if(event==="SIGNED_IN"&&session){
+        const{data:member}=await supabase.from("members").select("*").eq("auth_user_id",session.user.id).single();
+        if(member) setCurrentUser(member);
+      }
+    });
+    return()=>subscription.unsubscribe();
+  },[]);
+
+  const handleAuth=(member)=>{ setCurrentUser(member); };
+  const handleLogout=async()=>{ await supabase.auth.signOut(); setCurrentUser(null); };
+
+  if(!authChecked) return <div style={{minHeight:"100vh",background:BG,display:"flex",alignItems:"center",justifyContent:"center",color:TEXT3,fontFamily:"'DM Sans',sans-serif"}}>Loading...</div>;
   if(!currentUser) return <AuthScreen onAuth={handleAuth}/>;
-  return <MainApp currentUser={currentUser} setCurrentUser={(u)=>{ localStorage.setItem("cp_user",JSON.stringify(u)); setCurrentUser(u); }} onLogout={handleLogout}/>;
+  return <MainApp currentUser={currentUser} setCurrentUser={setCurrentUser} onLogout={handleLogout}/>;
 }
 
 function MainApp({currentUser,setCurrentUser,onLogout}){
@@ -781,7 +865,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
             <Avatar name={currentUser.name} color={currentUser.color} size={26}/>
             {!isMobile&&<div style={{textAlign:"left"}}><div style={{fontSize:13,fontWeight:500,color:TEXT1}}>{currentUser.name}</div><div style={{fontSize:11,color:TEXT2}}>{currentUser.email||"Add email"}</div></div>}
           </button>
-          {!isMobile&&<button onClick={onLogout} style={{background:"none",border:`1px solid ${BORDER}`,color:TEXT3,borderRadius:6,padding:"5px 10px",cursor:"pointer",fontSize:11,fontFamily:"'DM Sans',sans-serif",marginLeft:4}}>Switch</button>}
+          {!isMobile&&<button onClick={onLogout} style={{background:"none",border:`1px solid ${BORDER}`,color:TEXT3,borderRadius:6,padding:"5px 10px",cursor:"pointer",fontSize:11,fontFamily:"'DM Sans',sans-serif",marginLeft:4}}>Sign Out</button>}
           {isMobile&&<button onClick={()=>setMenuOpen(v=>!v)} style={{background:"none",border:`1px solid ${BORDER}`,color:TEXT2,borderRadius:6,padding:"5px 10px",cursor:"pointer",fontSize:18,lineHeight:1}}>☰</button>}
         </div>
       </div>
@@ -790,7 +874,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
         <div style={{position:"fixed",top:52,right:0,left:0,background:SURFACE,borderBottom:`1px solid ${BORDER}`,zIndex:19,padding:"8px 0"}}>
           {[["content","Content Calendar"],["events","Events & Deadlines"],["tasks","Task Manager"],["team","Team"]].map(([id,label])=>(<button key={id} onClick={()=>{setTab(id);setMenuOpen(false);}} style={{width:"100%",background:tab===id?SURFACE2:"transparent",border:"none",borderLeft:tab===id?`3px solid ${ORANGE}`:"3px solid transparent",color:tab===id?TEXT1:TEXT2,padding:"14px 20px",cursor:"pointer",fontSize:15,fontFamily:"'DM Sans',sans-serif",textAlign:"left",display:"block"}}>{label}</button>))}
           <div style={{borderTop:`1px solid ${BORDER}`,margin:"8px 0"}}/>
-          <button onClick={()=>{onLogout();setMenuOpen(false);}} style={{width:"100%",background:"transparent",border:"none",color:TEXT3,padding:"12px 20px",cursor:"pointer",fontSize:14,fontFamily:"'DM Sans',sans-serif",textAlign:"left"}}>Switch Account</button>
+          <button onClick={()=>{onLogout();setMenuOpen(false);}} style={{width:"100%",background:"transparent",border:"none",color:TEXT3,padding:"12px 20px",cursor:"pointer",fontSize:14,fontFamily:"'DM Sans',sans-serif",textAlign:"left"}}>Sign Out</button>
         </div>
       )}
 
