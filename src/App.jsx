@@ -651,6 +651,142 @@ export default function App(){
   return <MainApp currentUser={currentUser} setCurrentUser={setCurrentUser} onLogout={handleLogout}/>;
 }
 
+// ── PDF Export ────────────────────────────────────────────────────────────────
+function exportCalendarPDF(year,month,posts,postImagesMap,campaigns,MONTHS,PLATFORM_COLORS){
+  const daysInMonth=new Date(year,month+1,0).getDate();
+  const firstDay=new Date(year,month,1).getDay();
+  const monthName=MONTHS[month];
+  const today=new Date();
+
+  // Build day cells
+  const cells=[];
+  for(let i=0;i<firstDay;i++) cells.push(null);
+  for(let d=1;d<=daysInMonth;d++) cells.push(d);
+
+  const getDayPosts=(day)=>{
+    const ds=`${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+    return posts.filter(p=>p.post_date===ds);
+  };
+
+  const getCover=(post)=>{
+    const imgs=postImagesMap[post.id];
+    if(imgs&&imgs.length>0) return imgs[0].image_url||imgs[0].url||null;
+    return post.image_url||null;
+  };
+
+  const dayStyles=`
+    .day { border: 1px solid #ddd; min-height: 120px; padding: 6px; break-inside: avoid; }
+    .day-num { font-size: 13px; font-weight: 600; color: #444; margin-bottom: 6px; }
+    .day-num.today { color: #d4420a; }
+    .post-card { border-radius: 6px; overflow: hidden; margin-bottom: 6px; border: 1px solid #eee; page-break-inside: avoid; }
+    .post-img { width: 100%; height: 80px; object-fit: cover; display: block; }
+    .post-img-placeholder { width: 100%; height: 80px; background: #f5f5f5; display: flex; align-items: center; justify-content: center; color: #aaa; font-size: 22px; }
+    .post-body { padding: 5px 7px; }
+    .post-platform { font-size: 10px; font-weight: 600; margin-bottom: 3px; }
+    .post-caption { font-size: 11px; color: #555; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .post-campaign { font-size: 10px; color: #d4420a; margin-top: 2px; }
+    .empty { background: #fafafa; }
+  `;
+
+  const calendarRows=[];
+  for(let i=0;i<cells.length;i+=7){
+    const row=cells.slice(i,i+7);
+    calendarRows.push(row);
+  }
+
+  const rowsHtml=calendarRows.map(row=>`
+    <tr>
+      ${row.map(day=>{
+        if(!day) return `<td class="day empty"></td>`;
+        const isToday=day===today.getDate()&&month===today.getMonth()&&year===today.getFullYear();
+        const dayPosts=getDayPosts(day);
+        const postsHtml=dayPosts.map(post=>{
+          const cover=getCover(post);
+          const linked=post.campaign_id?campaigns.find(c=>c.id===post.campaign_id):null;
+          const imgs=postImagesMap[post.id];
+          const isCarousel=imgs&&imgs.length>1;
+          const color=PLATFORM_COLORS[post.platform]||"#888";
+          return `
+            <div class="post-card">
+              ${cover
+                ?`<img class="post-img" src="${cover}" crossorigin="anonymous"/>`
+                :`<div class="post-img-placeholder">🖼</div>`
+              }
+              <div class="post-body">
+                <div class="post-platform" style="color:${color}">${post.platform}${post.account_handle?` · @${post.account_handle}`:""}${isCarousel?` · ⧉${imgs.length}`:""}</div>
+                <div class="post-caption">${post.caption||"<em>No caption</em>"}</div>
+                ${linked?`<div class="post-campaign">↳ ${linked.name}</div>`:""}
+              </div>
+            </div>
+          `;
+        }).join("");
+        return `
+          <td class="day">
+            <div class="day-num ${isToday?"today":""}">${day}</div>
+            ${postsHtml||""}
+          </td>
+        `;
+      }).join("")}
+    </tr>
+  `).join("");
+
+  const html=`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8"/>
+      <title>Fierce Firearms · Content Calendar · ${monthName} ${year}</title>
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #fff; color: #222; padding: 24px; }
+        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #d4420a; }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .brand-bar { width: 4px; height: 36px; background: #d4420a; border-radius: 2px; }
+        .brand-name { font-size: 22px; font-weight: 700; color: #111; }
+        .brand-sub { font-size: 13px; color: #888; margin-top: 2px; }
+        .month-title { font-size: 28px; font-weight: 700; color: #d4420a; }
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        th { text-align: center; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #888; padding: 6px 0; font-weight: 500; }
+        td { vertical-align: top; }
+        ${dayStyles}
+        .footer { margin-top: 16px; font-size: 11px; color: #aaa; text-align: right; }
+        @media print {
+          body { padding: 12px; }
+          @page { size: landscape; margin: 1cm; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <div class="header-left">
+          <div class="brand-bar"></div>
+          <div>
+            <div class="brand-name">Fierce Firearms</div>
+            <div class="brand-sub">Sales & Marketing · Content Calendar</div>
+          </div>
+        </div>
+        <div class="month-title">${monthName} ${year}</div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            ${["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"].map(d=>`<th>${d}</th>`).join("")}
+          </tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+      <div class="footer">Generated ${new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})} · fiercetask.vercel.app</div>
+    </body>
+    </html>
+  `;
+
+  const win=window.open("","_blank");
+  win.document.write(html);
+  win.document.close();
+  // Wait for images to load then trigger print
+  win.onload=()=>{ setTimeout(()=>{ win.print(); },800); };
+}
+
 function MainApp({currentUser,setCurrentUser,onLogout}){
   const isMobile=useIsMobile();
   const [tab,setTab]=useState("content");
@@ -956,8 +1092,14 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
               </span>
               <button onClick={calView==="month"?nextContent:nextWeek} style={{background:"none",border:`1px solid ${BORDER}`,color:TEXT2,borderRadius:6,width:36,height:36,cursor:"pointer",fontSize:20,display:"flex",alignItems:"center",justifyContent:"center"}}>›</button>
             </div>
-            <div style={{display:"flex",gap:2,background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:6,padding:3}}>
-              {["month","week"].map(v=><button key={v} onClick={()=>setCalView(v)} style={{background:calView===v?SURFACE2:"transparent",border:calView===v?`1px solid ${BORDER2}`:"1px solid transparent",color:calView===v?TEXT1:TEXT3,borderRadius:4,padding:"5px 14px",cursor:"pointer",fontSize:12,fontFamily:"'DM Sans',sans-serif",fontWeight:calView===v?500:400,textTransform:"capitalize"}}>{v}</button>)}
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              <button onClick={()=>exportCalendarPDF(contentYear,contentMonth,posts,postImagesMap,campaigns,MONTHS,PLATFORM_COLORS)} style={{background:"none",border:`1px solid ${BORDER}`,color:TEXT2,borderRadius:6,padding:"6px 14px",cursor:"pointer",fontSize:12,fontFamily:"'DM Sans',sans-serif",display:"flex",alignItems:"center",gap:6}}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor=ORANGE;e.currentTarget.style.color=ORANGE;}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor=BORDER;e.currentTarget.style.color=TEXT2;}}
+              >↓ Export PDF</button>
+              <div style={{display:"flex",gap:2,background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:6,padding:3}}>
+                {["month","week"].map(v=><button key={v} onClick={()=>setCalView(v)} style={{background:calView===v?SURFACE2:"transparent",border:calView===v?`1px solid ${BORDER2}`:"1px solid transparent",color:calView===v?TEXT1:TEXT3,borderRadius:4,padding:"5px 14px",cursor:"pointer",fontSize:12,fontFamily:"'DM Sans',sans-serif",fontWeight:calView===v?500:400,textTransform:"capitalize"}}>{v}</button>)}
+              </div>
             </div>
           </div>
 
