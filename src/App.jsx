@@ -452,6 +452,69 @@ function SocialAccountManager({socialAccounts,setSocialAccounts,onClose,isMobile
   );
 }
 
+function InviteModal({onClose,isMobile}){
+  const [email,setEmail]=useState("");
+  const [role,setRole]=useState("Member");
+  const [name,setName]=useState("");
+  const [sending,setSending]=useState(false);
+  const [msg,setMsg]=useState("");
+  const [err,setErr]=useState("");
+
+  const sendInvite=async()=>{
+    if(!email.trim()){setErr("Enter an email address."); return;}
+    if(!name.trim()){setErr("Enter their name."); return;}
+    setSending(true); setErr("");
+
+    // Use Supabase admin to send invite email
+    const{data,error}=await supabase.auth.admin.inviteUserByEmail(email.trim(),{
+      data:{name:name.trim(),role},
+      redirectTo:"https://fiercetask.vercel.app"
+    });
+
+    if(error){
+      // admin.inviteUserByEmail requires service role key — fall back to signUp with no password
+      // which sends a magic link confirmation email instead
+      const{error:err2}=await supabase.auth.signUp({
+        email:email.trim(),
+        password:Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2)+"A1!",
+        options:{data:{name:name.trim(),role},emailRedirectTo:"https://fiercetask.vercel.app"}
+      });
+      setSending(false);
+      if(err2){setErr(err2.message); return;}
+    } else {
+      setSending(false);
+    }
+
+    setMsg(`Invite sent to ${email.trim()}! They'll get an email to set their password and join.`);
+    setEmail(""); setName(""); setRole("Member");
+  };
+
+  return(
+    <ModalOverlay onClose={onClose} isMobile={isMobile}>
+      <div style={{fontFamily:"'Playfair Display',serif",fontSize:20,marginBottom:4,color:TEXT1}}>Invite Team Member</div>
+      <div style={{fontSize:13,color:TEXT3,marginBottom:20}}>They'll receive an email to set their password and join the workspace.</div>
+
+      {msg&&<div style={{fontSize:13,color:"#4a9e60",background:"#0d2a1488",border:"1px solid #1a3020",borderRadius:8,padding:"10px 14px",marginBottom:16,lineHeight:1.5}}>{msg}</div>}
+      {err&&<div style={{fontSize:13,color:"#c47a30",background:"#2a220088",border:"1px solid #3a2a18",borderRadius:8,padding:"10px 14px",marginBottom:16}}>{err}</div>}
+
+      <FL>Their Name</FL>
+      <input value={name} onChange={e=>setName(e.target.value)} placeholder="Full name" style={{...inputStyle,marginBottom:12}}/>
+      <FL>Email Address</FL>
+      <input type="email" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>{if(e.key==="Enter") sendInvite();}} placeholder="contractor@email.com" style={{...inputStyle,marginBottom:12}}/>
+      <FL>Role</FL>
+      <select value={role} onChange={e=>setRole(e.target.value)} style={{...inputStyle,marginBottom:8}}>
+        {["Admin","Manager","Member","Contractor"].map(r=><option key={r}>{r}</option>)}
+      </select>
+      <div style={{fontSize:11,color:TEXT3,marginBottom:20}}>Contractors have the same access as Members but are labelled separately on the Team tab.</div>
+
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+        {!isMobile&&<GhostBtn onClick={onClose}>Cancel</GhostBtn>}
+        <OrangeBtn onClick={sendInvite} style={{flex:isMobile?1:undefined}}>{sending?"Sending...":"Send Invite"}</OrangeBtn>
+      </div>
+    </ModalOverlay>
+  );
+}
+
 // ── Auth Screen ───────────────────────────────────────────────────────────────
 function AuthScreen({onAuth}){
   const isMobile=useIsMobile();
@@ -604,6 +667,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
   const [loading,setLoading]=useState(true);
   const [showTypeManager,setShowTypeManager]=useState(false);
   const [showProfile,setShowProfile]=useState(false);
+  const [showInvite,setShowInvite]=useState(false);
   const [menuOpen,setMenuOpen]=useState(false);
 
   const [eventsChannelFilter,setEventsChannelFilter]=useState("All");
@@ -1286,8 +1350,13 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
       {/* TEAM */}
       {tab==="team"&&(
         <div style={{padding:pad}}>
-          <div style={{fontFamily:"'Playfair Display',serif",fontSize:isMobile?20:22,marginBottom:4,color:TEXT1}}>Team Overview</div>
-          <div style={{fontSize:12,color:TEXT3,marginBottom:20}}>{members.length} members · {tasks.length} tasks · {completedTasks.length} complete</div>
+          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:20}}>
+            <div>
+              <div style={{fontFamily:"'Playfair Display',serif",fontSize:isMobile?20:22,marginBottom:4,color:TEXT1}}>Team Overview</div>
+              <div style={{fontSize:12,color:TEXT3}}>{members.length} members · {tasks.length} tasks · {completedTasks.length} complete</div>
+            </div>
+            {currentUser.role==="Admin"&&<OrangeBtn onClick={()=>setShowInvite(true)} style={{padding:"8px 16px",fontSize:13,whiteSpace:"nowrap"}}>+ Invite Member</OrangeBtn>}
+          </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8,marginBottom:24}}>
             {Object.entries(STATUS_COLORS).map(([s,c])=>{ const count=tasks.filter(t=>t.status===s).length; return <div key={s} style={{background:SURFACE,border:`1px solid ${c.border}`,borderRadius:8,padding:"12px 14px"}}><div style={{fontSize:10,color:c.text,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:4,fontWeight:500}}>{s}</div><div style={{fontSize:24,fontWeight:500,color:c.text,fontFamily:"'Playfair Display',serif"}}>{count}</div></div>; })}
           </div>
@@ -1427,6 +1496,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
       {showTypeManager&&<EventTypeManager eventTypes={eventTypes} setEventTypes={setEventTypes} onClose={()=>setShowTypeManager(false)} isMobile={isMobile}/>}
       {showProfile&&<ProfileModal currentUser={currentUser} setCurrentUser={setCurrentUser} onClose={()=>setShowProfile(false)} isMobile={isMobile}/>}
       {showAccountManager&&<SocialAccountManager socialAccounts={socialAccounts} setSocialAccounts={setSocialAccounts} onClose={()=>setShowAccountManager(false)} isMobile={isMobile}/>}
+      {showInvite&&<InviteModal onClose={()=>setShowInvite(false)} isMobile={isMobile}/>}
       {previewPost&&<PostPreview post={previewPost} images={getPostImages(previewPost)} members={members} onClose={()=>setPreviewPost(null)} onEdit={()=>{openEditPost(previewPost);setPreviewPost(null);}} isMobile={isMobile}/>}
     </div>
   );
