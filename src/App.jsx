@@ -287,9 +287,10 @@ function PostPreview({post,images,members,onClose,onEdit,isMobile}){
   return(
     <div style={{position:"fixed",inset:0,background:"#000000cc",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(8px)"}} onClick={onClose}>
       <div onClick={e=>e.stopPropagation()} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:16,maxHeight:"90vh",overflowY:"auto",padding:"20px 16px"}}>
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",justifyContent:"center"}}>
           <span style={{fontSize:13,color:pc,border:`1px solid ${pc}55`,borderRadius:6,padding:"4px 12px",fontFamily:"'DM Sans',sans-serif",fontWeight:500}}>{platform}</span>
           <span style={{fontSize:12,color:TEXT3,fontFamily:"'DM Sans',sans-serif"}}>Preview{images&&images.length>1?` · ${images.length} slides`:""}</span>
+          {post.collab_brands&&<span style={{fontSize:12,color:"#a07acc",border:"1px solid #a07acc55",borderRadius:6,padding:"4px 10px",fontFamily:"'DM Sans',sans-serif"}}>🤝 {post.collab_brands}</span>}
         </div>
         {renderPreview()}
         <div style={{display:"flex",gap:10}}>
@@ -713,6 +714,7 @@ function exportCalendarPDF(year,month,posts,postImagesMap,campaigns,calendarNote
               <div class="post-body">
                 <div class="post-platform" style="color:${color}">${post.platform}${post.account_handle?` · @${post.account_handle}`:""}${isCarousel?` · ⧉${imgs.length}`:""}</div>
                 <div class="post-caption">${post.caption||"<em>No caption</em>"}</div>
+                ${post.collab_brands?`<div style="font-size:10px;color:#a07acc;margin-top:3px;">🤝 ${post.collab_brands}</div>`:""}
                 ${linked?`<div class="post-campaign">↳ ${linked.name}</div>`:""}
               </div>
             </div>
@@ -819,7 +821,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
   const [eventsWeekStart,setEventsWeekStart]=useState(()=>{ const d=new Date(today); d.setDate(d.getDate()-d.getDay()); d.setHours(0,0,0,0); return d; });
 
   const [postModal,setPostModal]=useState(null);
-  const [postForm,setPostForm]=useState({caption:"",platform:"Instagram",account_id:"",account_handle:"",campaign_id:"",task_id:""});
+  const [postForm,setPostForm]=useState({caption:"",platform:"Instagram",account_id:"",account_handle:"",campaign_id:"",task_id:"",collab_brands:""});
   const [postImages,setPostImages]=useState([]); // [{url, id}] for current modal
   const [previewPost,setPreviewPost]=useState(null);
   const [dragOver,setDragOver]=useState(null);
@@ -908,12 +910,12 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
   // ── Post modal ────────────────────────────────────────────────────────────
   const openAddPost=(day,month=contentMonth,year=contentYear)=>{
     setPostModal({day,ds:mkDate(year,month,day)});
-    setPostForm({caption:"",platform:"Instagram",account_id:"",account_handle:"",campaign_id:"",task_id:""});
+    setPostForm({caption:"",platform:"Instagram",account_id:"",account_handle:"",campaign_id:"",task_id:"",collab_brands:""});
     setPostImages([]);
   };
   const openEditPost=(post)=>{
     setPostModal({day:parseInt(post.post_date.split("-")[2]),ds:post.post_date,editId:post.id});
-    setPostForm({caption:post.caption,platform:post.platform,account_id:post.account_id||"",account_handle:post.account_handle||"",campaign_id:post.campaign_id||"",task_id:post.task_id||""});
+    setPostForm({caption:post.caption,platform:post.platform,account_id:post.account_id||"",account_handle:post.account_handle||"",campaign_id:post.campaign_id||"",task_id:post.task_id||"",collab_brands:post.collab_brands||""});
     // Load carousel images
     const imgs=postImagesMap[post.id];
     if(imgs&&imgs.length>0) setPostImages(imgs.map(i=>({url:i.image_url||i.url,id:i.id,position:i.position})));
@@ -922,7 +924,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
   };
 
   const savePost=async()=>{
-    const payload={caption:postForm.caption,platform:postForm.platform,account_id:postForm.account_id||null,account_handle:postForm.account_handle||null,campaign_id:postForm.campaign_id||null,task_id:postForm.task_id||null};
+    const payload={caption:postForm.caption,platform:postForm.platform,account_id:postForm.account_id||null,account_handle:postForm.account_handle||null,campaign_id:postForm.campaign_id||null,task_id:postForm.task_id||null,collab_brands:postForm.collab_brands||null};
     // Set cover image_url to first image for backwards compat
     if(postImages.length>0) payload.image_url=postImages[0].url;
     else payload.image_url="";
@@ -1358,7 +1360,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
                                   <div style={{fontSize:11,color:TEXT2,lineHeight:1.4,marginBottom:5,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>
                                     {post.caption||<span style={{color:TEXT3,fontStyle:"italic"}}>No caption</span>}
                                   </div>
-                                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:4,marginBottom:6}}>
+                                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:4,marginBottom:post.collab_brands?4:6}}>
                                     <div style={{display:"flex",alignItems:"center",gap:4}}>
                                       <span style={{fontSize:10,color:PLATFORM_COLORS[post.platform]}}>{post.platform}</span>
                                       {post.account_handle&&<span style={{fontSize:10,color:TEXT3}}>@{post.account_handle}</span>}
@@ -1369,6 +1371,11 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
                                       {creator&&<Avatar name={creator.name} color={creator.color} size={14}/>}
                                     </div>
                                   </div>
+                                  {post.collab_brands&&(
+                                    <div style={{fontSize:9,color:"#a07acc",background:"#1a1228",border:"1px solid #2a1a4488",borderRadius:3,padding:"2px 6px",marginBottom:6,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                                      🤝 {post.collab_brands}
+                                    </div>
+                                  )}
                                   <div style={{display:"flex",gap:4}}>
                                     <button onClick={e=>{e.stopPropagation(); if(!draggingPost) setPreviewPost(post);}} style={{flex:1,background:SURFACE2,border:`1px solid ${BORDER}`,color:TEXT2,borderRadius:4,padding:"4px 0",cursor:"pointer",fontSize:10,fontFamily:"'DM Sans',sans-serif"}}
                                       onMouseEnter={e=>{e.currentTarget.style.borderColor=ORANGE;e.currentTarget.style.color=ORANGE;}}
@@ -1689,10 +1696,18 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
             {campaigns.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
           <FL>Link to Task</FL>
-          <select value={postForm.task_id} onChange={e=>setPostForm(f=>({...f,task_id:e.target.value}))} style={{...inputStyle,marginBottom:20}}>
+          <select value={postForm.task_id} onChange={e=>setPostForm(f=>({...f,task_id:e.target.value}))} style={{...inputStyle,marginBottom:16}}>
             <option value="">— None —</option>
             {tasks.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
+          <FL>Collaborating Brands</FL>
+          <input
+            value={postForm.collab_brands}
+            onChange={e=>setPostForm(f=>({...f,collab_brands:e.target.value}))}
+            placeholder="e.g. Vortex Optics, Magpul, SilencerCo"
+            style={{...inputStyle,marginBottom:8}}
+          />
+          <div style={{fontSize:11,color:TEXT3,marginBottom:20}}>Separate multiple brands with commas</div>
           <MA onCancel={()=>setPostModal(null)} onSave={savePost} onDelete={postModal.editId?()=>deletePost(postModal.editId):null} saveLabel={postModal.editId?"Save Changes":"Add Post"} isMobile={isMobile}/>
         </ModalOverlay>
       )}
