@@ -1698,7 +1698,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
           <FL>Link to Task</FL>
           <select value={postForm.task_id} onChange={e=>setPostForm(f=>({...f,task_id:e.target.value}))} style={{...inputStyle,marginBottom:16}}>
             <option value="">— None —</option>
-            {tasks.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
+            {tasks.filter(t=>t.status!=="Complete").map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
           <FL>Collaborating Brands</FL>
           <input
