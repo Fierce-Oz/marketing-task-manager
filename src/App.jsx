@@ -652,7 +652,7 @@ export default function App(){
 }
 
 // ── PDF Export ────────────────────────────────────────────────────────────────
-function exportCalendarPDF(year,month,posts,postImagesMap,campaigns,MONTHS,PLATFORM_COLORS){
+function exportCalendarPDF(year,month,posts,postImagesMap,campaigns,calendarNotes,MONTHS,PLATFORM_COLORS){
   const daysInMonth=new Date(year,month+1,0).getDate();
   const firstDay=new Date(year,month,1).getDay();
   const monthName=MONTHS[month];
@@ -700,6 +700,8 @@ function exportCalendarPDF(year,month,posts,postImagesMap,campaigns,MONTHS,PLATF
         if(!day) return `<td class="day empty"></td>`;
         const isToday=day===today.getDate()&&month===today.getMonth()&&year===today.getFullYear();
         const dayPosts=getDayPosts(day);
+        const ds=`${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+        const note=calendarNotes[ds];
         const postsHtml=dayPosts.map(post=>{
           const cover=getCover(post);
           const linked=post.campaign_id?campaigns.find(c=>c.id===post.campaign_id):null;
@@ -723,6 +725,7 @@ function exportCalendarPDF(year,month,posts,postImagesMap,campaigns,MONTHS,PLATF
         return `
           <td class="day">
             <div class="day-num ${isToday?"today":""}">${day}</div>
+            ${note?`<div style="font-size:10px;color:#c47a30;background:#fff8f0;border:1px solid #f5d5a0;border-radius:4px;padding:3px 6px;margin-bottom:5px;line-height:1.4;">📝 ${note.note}</div>`:""}
             ${postsHtml||""}
           </td>
         `;
@@ -796,6 +799,9 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
   const [posts,setPosts]=useState([]);
   const [postImagesMap,setPostImagesMap]=useState({});
   const [socialAccounts,setSocialAccounts]=useState([]);
+  const [calendarNotes,setCalendarNotes]=useState({}); // {dateStr: note object}
+  const [noteModal,setNoteModal]=useState(null); // {ds, existingNote}
+  const [noteText,setNoteText]=useState("");
   const [showAccountManager,setShowAccountManager]=useState(false); // postId -> [{url,id,position}]
   const [events,setEvents]=useState([]);
   const [members,setMembers]=useState([]);
@@ -835,7 +841,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
 
   useEffect(()=>{
     async function fetchAll(){
-      const [m,p,ca,t,po,ev,et,pi,sa]=await Promise.all([
+      const [m,p,ca,t,po,ev,et,pi,sa,cn]=await Promise.all([
         supabase.from("members").select("*").order("created_at"),
         supabase.from("programs").select("*").order("created_at"),
         supabase.from("campaigns").select("*").order("created_at"),
@@ -845,6 +851,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
         supabase.from("event_types").select("*").order("created_at"),
         supabase.from("post_images").select("*").order("position"),
         supabase.from("social_accounts").select("*").order("platform"),
+        supabase.from("calendar_notes").select("*"),
       ]);
       setMembers(m.data||[]); setPrograms(p.data||[]); setCampaigns(ca.data||[]);
       setTasks(t.data||[]); setPosts(po.data||[]); setEvents(ev.data||[]);
@@ -853,6 +860,10 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
       const map={};
       (pi.data||[]).forEach(img=>{ if(!map[img.post_id]) map[img.post_id]=[]; map[img.post_id].push(img); });
       setPostImagesMap(map);
+      // Build calendarNotes map keyed by date string
+      const notesMap={};
+      (cn.data||[]).forEach(n=>{ notesMap[n.note_date]=n; });
+      setCalendarNotes(notesMap);
       setLoading(false);
     }
     fetchAll();
@@ -954,6 +965,33 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
     const{data}=await supabase.from("posts").update({post_date:newDs}).eq("id",post.id).select().single();
     if(data) setPosts(p=>p.map(px=>px.id===post.id?data:px));
     setDraggingPost(null); setDragOver(null);
+  };
+
+  const openNoteModal=(ds)=>{
+    const existing=calendarNotes[ds];
+    setNoteModal({ds,existing});
+    setNoteText(existing?.note||"");
+  };
+  const saveNote=async()=>{
+    const{ds,existing}=noteModal;
+    if(!noteText.trim()){
+      // Delete if empty
+      if(existing){ await supabase.from("calendar_notes").delete().eq("id",existing.id); setCalendarNotes(prev=>{ const n={...prev}; delete n[ds]; return n; }); }
+      setNoteModal(null); return;
+    }
+    if(existing){
+      const{data}=await supabase.from("calendar_notes").update({note:noteText.trim()}).eq("id",existing.id).select().single();
+      setCalendarNotes(prev=>({...prev,[ds]:data}));
+    }else{
+      const{data}=await supabase.from("calendar_notes").insert({note_date:ds,note:noteText.trim(),created_by:currentUser.id}).select().single();
+      setCalendarNotes(prev=>({...prev,[ds]:data}));
+    }
+    setNoteModal(null);
+  };
+  const deleteNote=async()=>{
+    const{ds,existing}=noteModal;
+    if(existing){ await supabase.from("calendar_notes").delete().eq("id",existing.id); setCalendarNotes(prev=>{ const n={...prev}; delete n[ds]; return n; }); }
+    setNoteModal(null);
   };
 
   const getDayPosts=(day)=>{ const ds=mkDate(contentYear,contentMonth,day); return posts.filter(p=>p.post_date===ds); };
@@ -1093,7 +1131,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
               <button onClick={calView==="month"?nextContent:nextWeek} style={{background:"none",border:`1px solid ${BORDER}`,color:TEXT2,borderRadius:6,width:36,height:36,cursor:"pointer",fontSize:20,display:"flex",alignItems:"center",justifyContent:"center"}}>›</button>
             </div>
             <div style={{display:"flex",gap:8,alignItems:"center"}}>
-              <button onClick={()=>exportCalendarPDF(contentYear,contentMonth,posts,postImagesMap,campaigns,MONTHS,PLATFORM_COLORS)} style={{background:"none",border:`1px solid ${BORDER}`,color:TEXT2,borderRadius:6,padding:"6px 14px",cursor:"pointer",fontSize:12,fontFamily:"'DM Sans',sans-serif",display:"flex",alignItems:"center",gap:6}}
+              <button onClick={()=>exportCalendarPDF(contentYear,contentMonth,posts,postImagesMap,campaigns,calendarNotes,MONTHS,PLATFORM_COLORS)} style={{background:"none",border:`1px solid ${BORDER}`,color:TEXT2,borderRadius:6,padding:"6px 14px",cursor:"pointer",fontSize:12,fontFamily:"'DM Sans',sans-serif",display:"flex",alignItems:"center",gap:6}}
                 onMouseEnter={e=>{e.currentTarget.style.borderColor=ORANGE;e.currentTarget.style.color=ORANGE;}}
                 onMouseLeave={e=>{e.currentTarget.style.borderColor=BORDER;e.currentTarget.style.color=TEXT2;}}
               >↓ Export PDF</button>
@@ -1150,8 +1188,18 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
                           {day&&(<>
                             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                               <span style={{fontSize:11,fontWeight:isToday(contentYear,contentMonth,day)?600:400,color:isToday(contentYear,contentMonth,day)?ORANGE:TEXT3,background:isToday(contentYear,contentMonth,day)?ORANGE+"22":"transparent",borderRadius:3,padding:isToday(contentYear,contentMonth,day)?"1px 4px":0}}>{day}</span>
-                              <button onClick={()=>openAddPost(day)} style={{background:"none",border:`1px solid ${BORDER}`,color:TEXT3,borderRadius:3,width:16,height:16,cursor:"pointer",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>+</button>
+                              <div style={{display:"flex",gap:3,alignItems:"center"}}>
+                                <button onClick={()=>openNoteModal(mkDate(contentYear,contentMonth,day))} style={{background:"none",border:"none",color:calendarNotes[mkDate(contentYear,contentMonth,day)]?"#c47a30":TEXT3,borderRadius:3,width:14,height:14,cursor:"pointer",fontSize:10,display:"flex",alignItems:"center",justifyContent:"center",padding:0,lineHeight:1}}
+                                  title="Add note"
+                                >✎</button>
+                                <button onClick={()=>openAddPost(day)} style={{background:"none",border:`1px solid ${BORDER}`,color:TEXT3,borderRadius:3,width:16,height:16,cursor:"pointer",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>+</button>
+                              </div>
                             </div>
+                            {calendarNotes[mkDate(contentYear,contentMonth,day)]&&(
+                              <div onClick={()=>openNoteModal(mkDate(contentYear,contentMonth,day))} style={{fontSize:9,color:"#c47a30",background:"#2a1a0088",border:"1px solid #3a2a1888",borderRadius:3,padding:"2px 5px",marginBottom:3,cursor:"pointer",lineHeight:1.3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                                📝 {calendarNotes[mkDate(contentYear,contentMonth,day)].note}
+                              </div>
+                            )}
                             <div style={{display:"flex",flexDirection:"column",gap:2}}>
                               {dayPosts.slice(0,3).map(post=>{
                                 const cover=getCoverImage(post);
@@ -1233,6 +1281,20 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
                             onMouseEnter={e=>{e.currentTarget.style.borderColor=ORANGE;e.currentTarget.style.color=ORANGE;}}
                             onMouseLeave={e=>{e.currentTarget.style.borderColor=BORDER;e.currentTarget.style.color=TEXT3;}}
                           >+ Add</button>
+                          {/* Day note */}
+                          {(()=>{
+                            const ds=mkDate(d.getFullYear(),d.getMonth(),d.getDate());
+                            const note=calendarNotes[ds];
+                            return(
+                              <div onClick={()=>openNoteModal(ds)} style={{background:note?"#2a1a0088":"transparent",border:note?"1px solid #3a2a1888":`1px dashed ${BORDER}`,borderRadius:5,padding:"5px 7px",cursor:"pointer",fontSize:10,color:note?"#c47a30":TEXT3,lineHeight:1.4,minHeight:28,display:"flex",alignItems:"center",gap:4}}
+                                onMouseEnter={e=>{e.currentTarget.style.borderColor="#c47a30";e.currentTarget.style.color="#c47a30";}}
+                                onMouseLeave={e=>{e.currentTarget.style.borderColor=note?"#3a2a18":BORDER;e.currentTarget.style.color=note?"#c47a30":TEXT3;}}
+                              >
+                                <span style={{fontSize:11,flexShrink:0}}>{note?"📝":"✎"}</span>
+                                <span style={{overflow:"hidden",textOverflow:"ellipsis",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{note?note.note:"Add note..."}</span>
+                              </div>
+                            );
+                          })()}
                           {dayPosts.map(post=>{
                             const imgs=getPostImages(post);
                             const linked=post.campaign_id?campaigns.find(c=>c.id===post.campaign_id):null;
@@ -1640,6 +1702,35 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
       {showAccountManager&&<SocialAccountManager socialAccounts={socialAccounts} setSocialAccounts={setSocialAccounts} onClose={()=>setShowAccountManager(false)} isMobile={isMobile}/>}
       {showInvite&&<InviteModal onClose={()=>setShowInvite(false)} isMobile={isMobile}/>}
       {previewPost&&<PostPreview post={previewPost} images={getPostImages(previewPost)} members={members} onClose={()=>setPreviewPost(null)} onEdit={()=>{openEditPost(previewPost);setPreviewPost(null);}} isMobile={isMobile}/>}
+
+      {/* NOTE MODAL */}
+      {noteModal&&(
+        <ModalOverlay onClose={()=>setNoteModal(null)} isMobile={isMobile}>
+          <div style={{fontFamily:"'Playfair Display',serif",fontSize:20,marginBottom:4,color:TEXT1}}>
+            {noteModal.existing?"Edit Note":"Add Note"}
+          </div>
+          <div style={{fontSize:13,color:TEXT3,marginBottom:20}}>{noteModal.ds}</div>
+          <FL>Note</FL>
+          <textarea
+            value={noteText}
+            onChange={e=>setNoteText(e.target.value)}
+            placeholder="e.g. Product lifestyle shot — Wingman SBR, outdoor setting"
+            rows={4}
+            autoFocus
+            style={{width:"100%",background:BG,border:`1px solid ${BORDER}`,borderRadius:8,color:TEXT1,fontSize:14,padding:"11px 13px",resize:"vertical",fontFamily:"'DM Sans',sans-serif",outline:"none",boxSizing:"border-box",lineHeight:1.6,marginBottom:20}}
+          />
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            {noteModal.existing
+              ?<button onClick={deleteNote} style={{background:"#1f1010",border:"1px solid #3a1818",color:"#a05050",borderRadius:8,padding:"10px 16px",cursor:"pointer",fontSize:14,fontFamily:"'DM Sans',sans-serif"}}>Delete Note</button>
+              :<div/>
+            }
+            <div style={{display:"flex",gap:8}}>
+              {!isMobile&&<GhostBtn onClick={()=>setNoteModal(null)}>Cancel</GhostBtn>}
+              <OrangeBtn onClick={saveNote} style={{flex:isMobile?1:undefined}}>Save Note</OrangeBtn>
+            </div>
+          </div>
+        </ModalOverlay>
+      )}
     </div>
   );
 }
