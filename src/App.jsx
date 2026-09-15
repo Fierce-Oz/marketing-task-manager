@@ -823,7 +823,8 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
   const [postImages,setPostImages]=useState([]); // [{url, id}] for current modal
   const [previewPost,setPreviewPost]=useState(null);
   const [dragOver,setDragOver]=useState(null);
-  const [draggingPost,setDraggingPost]=useState(null); // post being dragged
+  const [draggingPost,setDraggingPost]=useState(null);
+  const [draggingNote,setDraggingNote]=useState(null); // {ds, note} // post being dragged
 
   const [eventModal,setEventModal]=useState(null);
   const [eventForm,setEventForm]=useState({title:"",event_date:"",end_date:"",location:"",description:"",event_type:"",assignee_id:""});
@@ -988,6 +989,29 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
     const{ds,existing}=noteModal;
     if(existing){ await supabase.from("calendar_notes").delete().eq("id",existing.id); setCalendarNotes(prev=>{ const n={...prev}; delete n[ds]; return n; }); }
     setNoteModal(null);
+  };
+
+  const moveNote=async(fromDs,toDs)=>{
+    if(fromDs===toDs) return;
+    const note=calendarNotes[fromDs];
+    if(!note) return;
+    // If target day already has a note, don't overwrite — swap instead
+    const targetNote=calendarNotes[toDs];
+    if(targetNote){
+      // Swap: update both
+      await supabase.from("calendar_notes").update({note_date:toDs}).eq("id",note.id);
+      await supabase.from("calendar_notes").update({note_date:fromDs}).eq("id",targetNote.id);
+      setCalendarNotes(prev=>({
+        ...prev,
+        [toDs]:{...note,note_date:toDs},
+        [fromDs]:{...targetNote,note_date:fromDs},
+      }));
+    } else {
+      // Move: update date on existing note
+      await supabase.from("calendar_notes").update({note_date:toDs}).eq("id",note.id);
+      setCalendarNotes(prev=>{ const n={...prev}; delete n[fromDs]; n[toDs]={...note,note_date:toDs}; return n; });
+    }
+    setDraggingNote(null); setDragOver(null);
   };
 
   const getDayPosts=(day)=>{ const ds=mkDate(contentYear,contentMonth,day); return posts.filter(p=>p.post_date===ds); };
@@ -1156,11 +1180,13 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
                       const isDragOver=dragOver===`month-${i}`&&draggingPost;
                       return(
                         <div key={i}
-                          onDragOver={day?(e)=>{e.preventDefault();if(draggingPost) setDragOver(`month-${i}`);}:undefined}
+                          onDragOver={day?(e)=>{e.preventDefault();if(draggingPost||draggingNote) setDragOver(`month-${i}`);}:undefined}
                           onDragLeave={day?()=>setDragOver(null):undefined}
                           onDrop={day?async(e)=>{
                             e.preventDefault();
-                            if(draggingPost){ await movePost(draggingPost,mkDate(contentYear,contentMonth,day)); }
+                            const targetDs=mkDate(contentYear,contentMonth,day);
+                            if(draggingNote){ await moveNote(draggingNote.ds,targetDs); return; }
+                            if(draggingPost){ await movePost(draggingPost,targetDs); }
                             else{
                               // file drop
                               const file=e.dataTransfer.files[0];
@@ -1192,8 +1218,14 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
                               </div>
                             </div>
                             {calendarNotes[mkDate(contentYear,contentMonth,day)]&&(
-                              <div onClick={()=>openNoteModal(mkDate(contentYear,contentMonth,day))} style={{fontSize:9,color:"#c47a30",background:"#2a1a0088",border:"1px solid #3a2a1888",borderRadius:3,padding:"2px 5px",marginBottom:3,cursor:"pointer",lineHeight:1.3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                                📝 {calendarNotes[mkDate(contentYear,contentMonth,day)].note}
+                              <div
+                                draggable
+                                onDragStart={e=>{ e.stopPropagation(); setDraggingNote({ds:mkDate(contentYear,contentMonth,day),note:calendarNotes[mkDate(contentYear,contentMonth,day)]}); }}
+                                onDragEnd={()=>{ setDraggingNote(null); setDragOver(null); }}
+                                onClick={()=>{ if(!draggingNote) openNoteModal(mkDate(contentYear,contentMonth,day)); }}
+                                style={{fontSize:9,color:"#c47a30",background:"#2a1a0088",border:"1px solid #3a2a1888",borderRadius:3,padding:"2px 5px",marginBottom:3,cursor:"grab",lineHeight:1.3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",userSelect:"none",opacity:draggingNote?.ds===mkDate(contentYear,contentMonth,day)?0.4:1}}
+                              >
+                                ⠿ 📝 {calendarNotes[mkDate(contentYear,contentMonth,day)].note}
                               </div>
                             )}
                             <div style={{display:"flex",flexDirection:"column",gap:2}}>
@@ -1257,6 +1289,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
                           onDragLeave={()=>setDragOver(null)}
                           onDrop={async e=>{
                             e.preventDefault(); setDragOver(null);
+                            if(draggingNote){ await moveNote(draggingNote.ds,newDs); return; }
                             if(draggingPost){ await movePost(draggingPost,newDs); return; }
                             const file=e.dataTransfer.files[0];
                             if(file&&file.type.startsWith("image/")){
@@ -1282,12 +1315,30 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
                             const ds=mkDate(d.getFullYear(),d.getMonth(),d.getDate());
                             const note=calendarNotes[ds];
                             return(
-                              <div onClick={()=>openNoteModal(ds)} style={{background:note?"#2a1a0088":"transparent",border:note?"1px solid #3a2a1888":`1px dashed ${BORDER}`,borderRadius:5,padding:"5px 7px",cursor:"pointer",fontSize:10,color:note?"#c47a30":TEXT3,lineHeight:1.4,minHeight:28,display:"flex",alignItems:"center",gap:4}}
-                                onMouseEnter={e=>{e.currentTarget.style.borderColor="#c47a30";e.currentTarget.style.color="#c47a30";}}
-                                onMouseLeave={e=>{e.currentTarget.style.borderColor=note?"#3a2a18":BORDER;e.currentTarget.style.color=note?"#c47a30":TEXT3;}}
+                              <div
+                                onDragOver={e=>{e.preventDefault();}}
+                                onDrop={async e=>{
+                                  e.preventDefault();
+                                  if(draggingNote) await moveNote(draggingNote.ds,ds);
+                                }}
+                                onClick={()=>{ if(!draggingNote) openNoteModal(ds); }}
+                                style={{background:note?"#2a1a0088":"transparent",border:note?"1px solid #3a2a1888":`1px dashed ${BORDER}`,borderRadius:5,padding:"5px 7px",fontSize:10,color:note?"#c47a30":TEXT3,lineHeight:1.4,minHeight:28,display:"flex",alignItems:"center",gap:4,position:"relative"}}
+                                onMouseEnter={e=>{if(!note){e.currentTarget.style.borderColor="#c47a30";e.currentTarget.style.color="#c47a30";}}}
+                                onMouseLeave={e=>{if(!note){e.currentTarget.style.borderColor=BORDER;e.currentTarget.style.color=TEXT3;}}}
                               >
-                                <span style={{fontSize:11,flexShrink:0}}>{note?"📝":"✎"}</span>
-                                <span style={{overflow:"hidden",textOverflow:"ellipsis",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{note?note.note:"Add note..."}</span>
+                                {note?(
+                                  <div
+                                    draggable
+                                    onDragStart={e=>{ e.stopPropagation(); setDraggingNote({ds,note}); }}
+                                    onDragEnd={()=>{ setDraggingNote(null); setDragOver(null); }}
+                                    style={{display:"flex",alignItems:"flex-start",gap:4,width:"100%",cursor:"grab",opacity:draggingNote?.ds===ds?0.4:1,userSelect:"none"}}
+                                  >
+                                    <span style={{flexShrink:0}}>⠿ 📝</span>
+                                    <span style={{overflow:"hidden",textOverflow:"ellipsis",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{note.note}</span>
+                                  </div>
+                                ):(
+                                  <><span style={{fontSize:11,flexShrink:0}}>✎</span><span>Add note...</span></>
+                                )}
                               </div>
                             );
                           })()}
