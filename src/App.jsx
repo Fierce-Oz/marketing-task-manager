@@ -598,11 +598,7 @@ function AuthScreen({onAuth}){
           <FL>Email</FL>
           <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@fiercearms.com" style={{...inputStyle,marginBottom:12}}/>
           <FL>Password</FL>
-          <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Min 8 characters" style={{...inputStyle,marginBottom:12}}/>
-          <FL>Role</FL>
-          <select value={role} onChange={e=>setRole(e.target.value)} style={{...inputStyle,marginBottom:20}}>
-            {["Admin","Manager","Member","Contractor"].map(r=><option key={r}>{r}</option>)}
-          </select>
+          <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Min 8 characters" style={{...inputStyle,marginBottom:20}}/>
           <OrangeBtn onClick={handleSignup} style={{width:"100%",padding:"13px 0",fontSize:15,marginBottom:14}}>{loading?"Creating account...":"Create Account"}</OrangeBtn>
           <button onClick={()=>{setMode("login");setErr("");setMsg("");}} style={{background:"none",border:"none",color:TEXT3,fontSize:13,cursor:"pointer",padding:0,fontFamily:"'DM Sans',sans-serif"}}>Back to sign in</button>
         </>)}
@@ -1569,7 +1565,17 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
               <div key={m.id} style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:10,padding:"16px"}}>
                 <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
                   <Avatar name={m.name} color={m.color} size={40}/>
-                  <div style={{flex:1}}><div style={{fontWeight:500,fontSize:15,color:TEXT1,display:"flex",alignItems:"center",gap:6}}>{m.name}{m.id===currentUser.id&&<span style={{fontSize:10,color:ORANGE,border:`1px solid ${ORANGE}44`,borderRadius:4,padding:"1px 5px"}}>You</span>}</div><div style={{fontSize:12,color:TEXT3}}>{m.role}{m.email?` · ${m.email}`:""}</div>{m.id!==currentUser.id&&currentUser.role==="Admin"&&<button onClick={async(e)=>{ e.stopPropagation(); if(!window.confirm(`Remove ${m.name} from the team? This cannot be undone.`)) return; await supabase.from("members").delete().eq("id",m.id); setMembers(prev=>prev.filter(x=>x.id!==m.id)); }} style={{background:"none",border:"1px solid #3a1818",color:"#a05050",borderRadius:5,padding:"2px 8px",cursor:"pointer",fontSize:11,fontFamily:"'DM Sans',sans-serif",marginTop:4,display:"inline-block"}}>Remove</button>}</div>
+                  <div style={{flex:1}}><div style={{fontWeight:500,fontSize:15,color:TEXT1,display:"flex",alignItems:"center",gap:6}}>{m.name}{m.id===currentUser.id&&<span style={{fontSize:10,color:ORANGE,border:`1px solid ${ORANGE}44`,borderRadius:4,padding:"1px 5px"}}>You</span>}</div>
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginTop:2}}>
+                      {currentUser.role==="Admin"&&m.id!==currentUser.id
+                        ?<select value={m.role} onChange={async e=>{ const newRole=e.target.value; await supabase.from("members").update({role:newRole}).eq("id",m.id); setMembers(prev=>prev.map(x=>x.id===m.id?{...x,role:newRole}:x)); }} style={{background:SURFACE2,border:`1px solid ${BORDER}`,color:TEXT2,borderRadius:5,padding:"2px 6px",fontSize:12,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",outline:"none"}}>
+                            {["Admin","Manager","Member","Contractor"].map(r=><option key={r}>{r}</option>)}
+                          </select>
+                        :<span style={{fontSize:12,color:TEXT3}}>{m.role}</span>
+                      }
+                      {m.email&&<span style={{fontSize:12,color:TEXT3}}>· {m.email}</span>}
+                    </div>
+                    {m.id!==currentUser.id&&currentUser.role==="Admin"&&<button onClick={async(e)=>{ e.stopPropagation(); if(!window.confirm(`Remove ${m.name} from the team? This cannot be undone.`)) return; await supabase.from("members").delete().eq("id",m.id); setMembers(prev=>prev.filter(x=>x.id!==m.id)); }} style={{background:"none",border:"1px solid #3a1818",color:"#a05050",borderRadius:5,padding:"2px 8px",cursor:"pointer",fontSize:11,fontFamily:"'DM Sans',sans-serif",marginTop:4,display:"inline-block"}}>Remove</button>}</div>
                   <div style={{textAlign:"right"}}><div style={{fontSize:22,fontWeight:600,color:TEXT1,fontFamily:"'Playfair Display',serif"}}>{m.total}</div><div style={{fontSize:10,color:TEXT3}}>tasks</div></div>
                 </div>
                 {m.total>0&&<div style={{marginBottom:10}}><ProgressBar value={Math.round(((m.byStatus["Complete"]||0)/m.total)*100)}/></div>}
