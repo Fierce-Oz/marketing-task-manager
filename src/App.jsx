@@ -453,6 +453,77 @@ function SocialAccountManager({socialAccounts,setSocialAccounts,onClose,isMobile
   );
 }
 
+function MemberDetailModal({member,tasks,campaigns,onClose,isMobile}){
+  const [tab,setTab]=useState("active");
+  const memberTasks=tasks.filter(t=>t.assignee_id===member.id);
+  const activeTasks=memberTasks.filter(t=>t.status!=="Complete");
+  const completedTasks=[...memberTasks.filter(t=>t.status==="Complete")].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+  const displayed=tab==="active"?activeTasks:completedTasks;
+
+  return(
+    <ModalOverlay onClose={onClose} isMobile={isMobile}>
+      {/* Header */}
+      <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:20}}>
+        <Avatar name={member.name} color={member.color} size={48}/>
+        <div>
+          <div style={{fontFamily:"'Playfair Display',serif",fontSize:20,color:TEXT1}}>{member.name}</div>
+          <div style={{fontSize:13,color:TEXT3}}>{member.role}{member.email?` · ${member.email}`:""}</div>
+        </div>
+      </div>
+
+      {/* Summary bars */}
+      <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+        {Object.entries(STATUS_COLORS).map(([s,c])=>{ const count=memberTasks.filter(t=>t.status===s).length; if(!count) return null; return <span key={s} style={{fontSize:11,color:c.text,background:c.bg,border:`1px solid ${c.border}`,borderRadius:4,padding:"3px 9px"}}>{count} {s}</span>; })}
+        {memberTasks.length===0&&<span style={{fontSize:12,color:TEXT3}}>No tasks assigned</span>}
+      </div>
+
+      {/* Progress bar */}
+      {memberTasks.length>0&&(
+        <div style={{marginBottom:20}}>
+          <ProgressBar value={Math.round((completedTasks.length/memberTasks.length)*100)}/>
+          <div style={{fontSize:11,color:TEXT3,marginTop:4}}>{completedTasks.length}/{memberTasks.length} complete · {Math.round((completedTasks.length/memberTasks.length)*100)}%</div>
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div style={{display:"flex",borderBottom:`1px solid ${BORDER}`,marginBottom:16}}>
+        <button onClick={()=>setTab("active")} style={{background:"none",border:"none",borderBottom:tab==="active"?`2px solid ${ORANGE}`:"2px solid transparent",color:tab==="active"?TEXT1:TEXT3,padding:"8px 20px",cursor:"pointer",fontSize:13,fontFamily:"'DM Sans',sans-serif",fontWeight:tab==="active"?500:400,marginBottom:-1}}>
+          Active <span style={{fontSize:11,color:TEXT3,marginLeft:4}}>({activeTasks.length})</span>
+        </button>
+        <button onClick={()=>setTab("complete")} style={{background:"none",border:"none",borderBottom:tab==="complete"?`2px solid #4a9e60`:"2px solid transparent",color:tab==="complete"?"#4a9e60":TEXT3,padding:"8px 20px",cursor:"pointer",fontSize:13,fontFamily:"'DM Sans',sans-serif",fontWeight:tab==="complete"?500:400,marginBottom:-1}}>
+          Complete <span style={{fontSize:11,color:TEXT3,marginLeft:4}}>({completedTasks.length})</span>
+        </button>
+      </div>
+
+      {/* Task list */}
+      <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:360,overflowY:"auto"}}>
+        {displayed.length===0&&<div style={{textAlign:"center",padding:"32px 0",color:TEXT3,fontSize:13}}>{tab==="active"?"No active tasks":"No completed tasks"}</div>}
+        {displayed.map(t=>{
+          const sc=STATUS_COLORS[t.status]||STATUS_COLORS["Not Started"];
+          const pc=t.priority?PRIORITY_COLORS[t.priority]:null;
+          const chColor=t.channel?CHANNEL_COLORS[t.channel]:null;
+          const linkedCampaign=t.campaign_id?campaigns.find(c=>c.id===t.campaign_id):null;
+          const isComplete=t.status==="Complete";
+          return(
+            <div key={t.id} style={{padding:"12px 14px",background:BG,border:`1px solid ${isComplete?"#1a3020":BORDER}`,borderRadius:8,borderLeft:chColor?`3px solid ${chColor}`:isComplete?`3px solid #4a9e60`:`3px solid transparent`}}>
+              <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8,marginBottom:6}}>
+                <span style={{fontSize:13,color:isComplete?TEXT3:TEXT1,fontWeight:500,flex:1,textDecoration:isComplete?"line-through":"none"}}>{t.name}</span>
+                <span style={{fontSize:11,color:sc.text,background:sc.bg,border:`1px solid ${sc.border}`,borderRadius:4,padding:"2px 7px",whiteSpace:"nowrap",flexShrink:0}}>{t.status}</span>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                {t.priority&&<span style={{fontSize:11,color:pc?.text||TEXT3,border:`1px solid ${pc?.border||BORDER}`,borderRadius:4,padding:"2px 6px"}}>{t.priority}</span>}
+                {t.channel&&<span style={{fontSize:11,color:chColor,border:`1px solid ${chColor}44`,borderRadius:4,padding:"2px 6px"}}>{t.channel}</span>}
+                {linkedCampaign&&<span style={{fontSize:11,color:ORANGE}}>↳ {linkedCampaign.name}</span>}
+                {t.due_date&&<span style={{fontSize:11,color:TEXT3}}>Due {t.due_date}</span>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </ModalOverlay>
+  );
+}
+
 function InviteModal({onClose,isMobile}){
   const [email,setEmail]=useState("");
   const [role,setRole]=useState("Member");
@@ -808,6 +879,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
   const [showTypeManager,setShowTypeManager]=useState(false);
   const [showProfile,setShowProfile]=useState(false);
   const [showInvite,setShowInvite]=useState(false);
+  const [selectedMember,setSelectedMember]=useState(null);
   const [menuOpen,setMenuOpen]=useState(false);
 
   const [eventsChannelFilter,setEventsChannelFilter]=useState("All");
@@ -1055,7 +1127,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
     setItemModal(null);
   };
   const deleteItem=async()=>{ const{table,setData,data}=listConfig[itemModal.type]; await supabase.from(table).delete().eq("id",itemModal.editId); setData(data.filter(i=>i.id!==itemModal.editId)); setItemModal(null); };
-  const filteredData=(type)=>{ const{data}=listConfig[type]; let result=data; if(type==="tasks") result=taskView==="complete"?result.filter(i=>i.status==="Complete"):result.filter(i=>i.status!=="Complete"); if(searchQ) result=result.filter(i=>i.name.toLowerCase().includes(searchQ.toLowerCase())); if(type==="tasks"&&channelFilter!=="All") result=result.filter(i=>i.channel===channelFilter); return result; };
+  const filteredData=(type)=>{ const{data}=listConfig[type]; let result=data; if(type==="tasks") result=taskView==="complete"?result.filter(i=>i.status==="Complete"):result.filter(i=>i.status!=="Complete"); if(searchQ) result=result.filter(i=>i.name.toLowerCase().includes(searchQ.toLowerCase())); if(type==="tasks"&&channelFilter!=="All") result=result.filter(i=>i.channel===channelFilter); if(type==="tasks"&&taskView==="complete") result=[...result].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)); return result; };
   const memberStats=members.map(m=>{ const myTasks=tasks.filter(t=>t.assignee_id===m.id); const byStatus={}; Object.keys(STATUS_COLORS).forEach(s=>{ byStatus[s]=myTasks.filter(t=>t.status===s).length; }); return{...m,tasks:myTasks,byStatus,total:myTasks.length}; });
   const activeTasks=tasks.filter(t=>t.status!=="Complete");
   const completedTasks=tasks.filter(t=>t.status==="Complete");
@@ -1620,7 +1692,10 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:12}}>
             {memberStats.map(m=>(
-              <div key={m.id} style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:10,padding:"16px"}}>
+              <div key={m.id} onClick={()=>setSelectedMember(m)} style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:10,padding:"16px",cursor:"pointer"}}
+                onMouseEnter={e=>e.currentTarget.style.borderColor=BORDER2}
+                onMouseLeave={e=>e.currentTarget.style.borderColor=BORDER}
+              >
                 <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
                   <Avatar name={m.name} color={m.color} size={40}/>
                   <div style={{flex:1}}><div style={{fontWeight:500,fontSize:15,color:TEXT1,display:"flex",alignItems:"center",gap:6}}>{m.name}{m.id===currentUser.id&&<span style={{fontSize:10,color:ORANGE,border:`1px solid ${ORANGE}44`,borderRadius:4,padding:"1px 5px"}}>You</span>}</div>
@@ -1773,6 +1848,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
       {showProfile&&<ProfileModal currentUser={currentUser} setCurrentUser={setCurrentUser} onClose={()=>setShowProfile(false)} isMobile={isMobile}/>}
       {showAccountManager&&<SocialAccountManager socialAccounts={socialAccounts} setSocialAccounts={setSocialAccounts} onClose={()=>setShowAccountManager(false)} isMobile={isMobile}/>}
       {showInvite&&<InviteModal onClose={()=>setShowInvite(false)} isMobile={isMobile}/>}
+      {selectedMember&&<MemberDetailModal member={selectedMember} tasks={tasks} campaigns={campaigns} onClose={()=>setSelectedMember(null)} isMobile={isMobile}/>}
       {previewPost&&<PostPreview post={previewPost} images={getPostImages(previewPost)} members={members} onClose={()=>setPreviewPost(null)} onEdit={()=>{openEditPost(previewPost);setPreviewPost(null);}} isMobile={isMobile}/>}
 
       {/* NOTE MODAL */}
