@@ -453,9 +453,9 @@ function SocialAccountManager({socialAccounts,setSocialAccounts,onClose,isMobile
   );
 }
 
-function MemberDetailModal({member,tasks,campaigns,onClose,isMobile}){
+function MemberDetailModal({member,tasks,campaigns,taskAssignees,onClose,isMobile}){
   const [tab,setTab]=useState("active");
-  const memberTasks=tasks.filter(t=>t.assignee_id===member.id);
+  const memberTasks=tasks.filter(t=>(taskAssignees[t.id]||[]).includes(member.id));
   const activeTasks=memberTasks.filter(t=>t.status!=="Complete");
   const completedTasks=[...memberTasks.filter(t=>t.status==="Complete")].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
   const displayed=tab==="active"?activeTasks:completedTasks;
@@ -871,6 +871,8 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
   const [calendarNotes,setCalendarNotes]=useState({}); // {dateStr: note object}
   const [noteModal,setNoteModal]=useState(null); // {ds, existingNote}
   const [noteText,setNoteText]=useState("");
+  const [taskAssignees,setTaskAssignees]=useState({}); // {taskId: [memberId,...]}
+  const [itemFormAssignees,setItemFormAssignees]=useState([]); // for current task modal
   const [showAccountManager,setShowAccountManager]=useState(false); // postId -> [{url,id,position}]
   const [events,setEvents]=useState([]);
   const [members,setMembers]=useState([]);
@@ -912,7 +914,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
 
   useEffect(()=>{
     async function fetchAll(){
-      const [m,p,ca,t,po,ev,et,pi,sa,cn]=await Promise.all([
+      const [m,p,ca,t,po,ev,et,pi,sa,cn,ta]=await Promise.all([
         supabase.from("members").select("*").order("created_at"),
         supabase.from("programs").select("*").order("created_at"),
         supabase.from("campaigns").select("*").order("created_at"),
@@ -923,6 +925,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
         supabase.from("post_images").select("*").order("position"),
         supabase.from("social_accounts").select("*").order("platform"),
         supabase.from("calendar_notes").select("*"),
+        supabase.from("task_assignees").select("*"),
       ]);
       setMembers(m.data||[]); setPrograms(p.data||[]); setCampaigns(ca.data||[]);
       setTasks(t.data||[]); setPosts(po.data||[]); setEvents(ev.data||[]);
@@ -931,10 +934,14 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
       const map={};
       (pi.data||[]).forEach(img=>{ if(!map[img.post_id]) map[img.post_id]=[]; map[img.post_id].push(img); });
       setPostImagesMap(map);
-      // Build calendarNotes map keyed by date string
+      // Build calendarNotes map
       const notesMap={};
       (cn.data||[]).forEach(n=>{ notesMap[n.note_date]=n; });
       setCalendarNotes(notesMap);
+      // Build taskAssignees map {taskId: [memberId,...]}
+      const taMap={};
+      (ta.data||[]).forEach(r=>{ if(!taMap[r.task_id]) taMap[r.task_id]=[]; taMap[r.task_id].push(r.member_id); });
+      setTaskAssignees(taMap);
       setLoading(false);
     }
     fetchAll();
@@ -1115,20 +1122,31 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
   const deleteEvent=async(id)=>{ await supabase.from("events").delete().eq("id",id); setEvents(e=>e.filter(ev=>ev.id!==id)); setEventModal(null); };
 
   const listConfig={ programs:{label:"Programs",data:programs,setData:setPrograms,table:"programs"}, campaigns:{label:"Campaigns",data:campaigns,setData:setCampaigns,table:"campaigns"}, tasks:{label:"Tasks",data:tasks,setData:setTasks,table:"tasks"} };
-  const openNewItem=()=>{ const defaults={ programs:{name:"",status:"Not Started",description:""}, campaigns:{name:"",status:"Not Started",priority:"Medium",program_id:"",description:""}, tasks:{name:"",status:"Not Started",priority:"Medium",campaign_id:"",due_date:"",description:"",assignee_id:"",channel:""} }; setItemModal({type:activeList}); setItemForm(defaults[activeList]); };
-  const openEditItem=(type,item)=>{ const{_type,...cleanItem}=item; setItemModal({type,editId:cleanItem.id}); setItemForm({...cleanItem}); };
+  const openNewItem=()=>{ const defaults={ programs:{name:"",status:"Not Started",description:""}, campaigns:{name:"",status:"Not Started",priority:"Medium",program_id:"",description:""}, tasks:{name:"",status:"Not Started",priority:"Medium",campaign_id:"",due_date:"",description:"",channel:""} }; setItemModal({type:activeList}); setItemForm(defaults[activeList]); setItemFormAssignees([]); };
+  const openEditItem=(type,item)=>{ const{_type,...cleanItem}=item; setItemModal({type,editId:cleanItem.id}); setItemForm({...cleanItem}); if(type==="tasks") setItemFormAssignees(taskAssignees[cleanItem.id]||[]); };
   const saveItem=async()=>{
     const{table,setData,data}=listConfig[itemModal.type];
     const payload={...itemForm};
     ["program_id","campaign_id","assignee_id","due_date","channel"].forEach(k=>{ if(payload[k]==="") payload[k]=null; });
     delete payload.id; delete payload.created_at; delete payload._type;
+    let taskId=itemModal.editId;
     if(itemModal.editId){ const{data:updated}=await supabase.from(table).update(payload).eq("id",itemModal.editId).select().single(); setData(data.map(i=>i.id===itemModal.editId?updated:i)); }
-    else{ const{data:created}=await supabase.from(table).insert(payload).select().single(); setData([...data,created]); }
+    else{ const{data:created}=await supabase.from(table).insert(payload).select().single(); setData([...data,created]); taskId=created.id; }
+    // Save multi-assignees for tasks
+    if(itemModal.type==="tasks"&&taskId){
+      await supabase.from("task_assignees").delete().eq("task_id",taskId);
+      if(itemFormAssignees.length>0){
+        await supabase.from("task_assignees").insert(itemFormAssignees.map(mid=>({task_id:taskId,member_id:mid})));
+      }
+      setTaskAssignees(prev=>({...prev,[taskId]:itemFormAssignees}));
+    }
     setItemModal(null);
   };
   const deleteItem=async()=>{ const{table,setData,data}=listConfig[itemModal.type]; await supabase.from(table).delete().eq("id",itemModal.editId); setData(data.filter(i=>i.id!==itemModal.editId)); setItemModal(null); };
   const filteredData=(type)=>{ const{data}=listConfig[type]; let result=data; if(type==="tasks") result=taskView==="complete"?result.filter(i=>i.status==="Complete"):result.filter(i=>i.status!=="Complete"); if(searchQ) result=result.filter(i=>i.name.toLowerCase().includes(searchQ.toLowerCase())); if(type==="tasks"&&channelFilter!=="All") result=result.filter(i=>i.channel===channelFilter); if(type==="tasks"&&taskView==="complete") result=[...result].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)); return result; };
-  const memberStats=members.map(m=>{ const myTasks=tasks.filter(t=>t.assignee_id===m.id); const byStatus={}; Object.keys(STATUS_COLORS).forEach(s=>{ byStatus[s]=myTasks.filter(t=>t.status===s).length; }); return{...m,tasks:myTasks,byStatus,total:myTasks.length}; });
+  // Use task_assignees for member stats
+  const getTaskAssignees=(taskId)=>{ const ids=taskAssignees[taskId]||[]; return ids.map(id=>members.find(m=>m.id===id)).filter(Boolean); };
+  const memberStats=members.map(m=>{ const myTasks=tasks.filter(t=>(taskAssignees[t.id]||[]).includes(m.id)); const byStatus={}; Object.keys(STATUS_COLORS).forEach(s=>{ byStatus[s]=myTasks.filter(t=>t.status===s).length; }); return{...m,tasks:myTasks,byStatus,total:myTasks.length}; });
   const activeTasks=tasks.filter(t=>t.status!=="Complete");
   const completedTasks=tasks.filter(t=>t.status==="Complete");
 
@@ -1536,8 +1554,8 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
                                   const chColor=item.channel?CHANNEL_COLORS[item.channel]||TEXT3:TEXT3;
                                   const statusBg=item.status==="Complete"?"#0d2a14":item.status==="In Progress"?"#2a2200":item.status==="Review"?"#0d1a2a":"#2a0a0a";
                                   const statusBorder=item.status==="Complete"?"#4a9e60":item.status==="In Progress"?"#c47a30":item.status==="Review"?"#4a8cc4":"#c43030";
-                                  const assignee=item.assignee_id?members.find(m=>m.id===item.assignee_id):null;
-                                  return <div key={`task-${item.id}`} onClick={()=>openEditItem("tasks",item)} style={{display:"flex",alignItems:"center",gap:3,background:statusBg,borderRadius:3,padding:"2px 4px",cursor:"pointer",borderLeft:`2px solid ${statusBorder}`}}><span style={{fontSize:9,color:TEXT2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>📌 {item.name}</span>{assignee&&<div style={{width:8,height:8,borderRadius:"50%",background:assignee.color,flexShrink:0}}/>}</div>;
+                                  const tas=getTaskAssignees(item.id);
+                                  return <div key={`task-${item.id}`} onClick={()=>openEditItem("tasks",item)} style={{display:"flex",alignItems:"center",gap:3,background:statusBg,borderRadius:3,padding:"2px 4px",cursor:"pointer",borderLeft:`2px solid ${statusBorder}`}}><span style={{fontSize:9,color:TEXT2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>📌 {item.name}</span>{tas.slice(0,2).map(a=><div key={a.id} style={{width:8,height:8,borderRadius:"50%",background:a.color,flexShrink:0}}/>)}</div>;
                                 }
                                 const c=getEventTypeColor(item.event_type);
                                 return <div key={`event-${item.id}`} onClick={()=>openEditEvent(item)} style={{display:"flex",alignItems:"center",gap:3,background:SURFACE2,borderRadius:3,padding:"2px 4px",cursor:"pointer",borderLeft:`2px solid ${c}`}}><span style={{fontSize:9,color:TEXT2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{item.title}</span></div>;
@@ -1585,13 +1603,13 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
                               const chColor=item.channel?CHANNEL_COLORS[item.channel]||TEXT3:TEXT3;
                               const statusBg=item.status==="Complete"?"#0d2a14":item.status==="In Progress"?"#2a2200":item.status==="Review"?"#0d1a2a":"#2a0a0a";
                               const statusBorder=item.status==="Complete"?"#4a9e60":item.status==="In Progress"?"#c47a30":item.status==="Review"?"#4a8cc4":"#c43030";
-                              const assignee=item.assignee_id?members.find(m=>m.id===item.assignee_id):null;
+                              const tas=getTaskAssignees(item.id);
                               return(
                                 <div key={`task-${item.id}`} onClick={()=>openEditItem("tasks",item)} style={{background:statusBg,border:`1px solid ${statusBorder}44`,borderLeft:`3px solid ${statusBorder}`,borderRadius:6,padding:"8px 10px",cursor:"pointer"}}>
                                   <div style={{fontSize:11,color:TEXT2,marginBottom:4,lineHeight:1.3}}>📌 {item.name}</div>
                                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:4}}>
                                     <span style={{fontSize:10,color:chColor}}>{item.channel||"Task"}</span>
-                                    {assignee&&<Avatar name={assignee.name} color={assignee.color} size={14}/>}
+                                    <div style={{display:"flex",gap:2}}>{tas.slice(0,3).map(a=><Avatar key={a.id} name={a.name} color={a.color} size={14}/>)}</div>
                                   </div>
                                 </div>
                               );
@@ -1651,7 +1669,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
               const pc=item.priority?PRIORITY_COLORS[item.priority]:null;
               const linkedProgram=item.program_id?programs.find(p=>p.id===item.program_id):null;
               const linkedCampaign=item.campaign_id?campaigns.find(c=>c.id===item.campaign_id):null;
-              const assignee=item.assignee_id?members.find(m=>m.id===item.assignee_id):null;
+              const assignees=getTaskAssignees(item.id);
               const chColor=item.channel?CHANNEL_COLORS[item.channel]||TEXT3:null;
               const progress=activeList==="campaigns"?getCampaignProgress(item.id):activeList==="programs"?getProgramProgress(item.id):null;
               const isComplete=item.status==="Complete";
@@ -1666,7 +1684,12 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
                     {item.channel&&<span style={{fontSize:11,color:chColor,border:`1px solid ${chColor}44`,borderRadius:4,padding:"2px 7px"}}>{item.channel}</span>}
                     {activeList==="campaigns"&&linkedProgram&&<span style={{fontSize:11,color:ORANGE}}>↳ {linkedProgram.name}</span>}
                     {activeList==="tasks"&&linkedCampaign&&<span style={{fontSize:11,color:ORANGE}}>↳ {linkedCampaign.name}</span>}
-                    {activeList==="tasks"&&assignee&&<div style={{display:"flex",alignItems:"center",gap:5}}><Avatar name={assignee.name} color={assignee.color} size={16}/><span style={{fontSize:11,color:TEXT2}}>{assignee.name.split(" ")[0]}</span></div>}
+                    {activeList==="tasks"&&assignees.length>0&&(
+                      <div style={{display:"flex",alignItems:"center",gap:3}}>
+                        {assignees.map(a=><Avatar key={a.id} name={a.name} color={a.color} size={18}/>)}
+                        {assignees.length===1&&<span style={{fontSize:11,color:TEXT2}}>{assignees[0].name.split(" ")[0]}</span>}
+                      </div>
+                    )}
                     {activeList==="tasks"&&item.due_date&&<span style={{fontSize:11,color:TEXT3}}>Due {item.due_date}</span>}
                   </div>
                   {progress&&<div><ProgressBar value={progress.pct}/><div style={{fontSize:10,color:progress.pct===100?"#4a9e60":TEXT3,marginTop:3}}>{progress.done}/{progress.total} tasks complete · {progress.pct}%</div></div>}
@@ -1823,7 +1846,22 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
               {CHANNELS.map(ch=>{ const c=CHANNEL_COLORS[ch]; return <button key={ch} onClick={()=>setItemForm(f=>({...f,channel:ch}))} style={{fontSize:12,color:itemForm.channel===ch?c:TEXT3,background:itemForm.channel===ch?`${c}22`:"transparent",border:`1px solid ${itemForm.channel===ch?c:BORDER}`,borderRadius:5,padding:"5px 10px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{ch}</button>; })}
             </div>
             <FL>Campaign (optional)</FL><select value={itemForm.campaign_id||""} onChange={e=>setItemForm(f=>({...f,campaign_id:e.target.value}))} style={{...inputStyle,marginBottom:12}}><option value="">— None —</option>{campaigns.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
-            <FL>Assign To</FL><select value={itemForm.assignee_id||""} onChange={e=>setItemForm(f=>({...f,assignee_id:e.target.value}))} style={{...inputStyle,marginBottom:12}}><option value="">— Unassigned —</option>{members.map(m=><option key={m.id} value={m.id}>{m.name} ({m.role})</option>)}</select>
+            <FL>Assign To</FL>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
+              {members.map(m=>{
+                const selected=itemFormAssignees.includes(m.id);
+                return(
+                  <button key={m.id} onClick={()=>setItemFormAssignees(prev=>selected?prev.filter(id=>id!==m.id):[...prev,m.id])}
+                    style={{display:"flex",alignItems:"center",gap:6,background:selected?`${m.color}22`:SURFACE2,border:`1px solid ${selected?m.color:BORDER}`,borderRadius:8,padding:"6px 12px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontSize:13,color:selected?m.color:TEXT2}}
+                  >
+                    <Avatar name={m.name} color={m.color} size={18}/>
+                    {m.name.split(" ")[0]}
+                    {selected&&<span style={{fontSize:11}}>✓</span>}
+                  </button>
+                );
+              })}
+              {members.length===0&&<span style={{fontSize:13,color:TEXT3}}>No team members yet</span>}
+            </div>
             <FL>Due Date</FL><input type="date" value={itemForm.due_date||""} onChange={e=>setItemForm(f=>({...f,due_date:e.target.value}))} style={{...inputStyle,colorScheme:"dark",marginBottom:12}}/>
           </>)}
           <FL>Description</FL>
@@ -1848,7 +1886,7 @@ function MainApp({currentUser,setCurrentUser,onLogout}){
       {showProfile&&<ProfileModal currentUser={currentUser} setCurrentUser={setCurrentUser} onClose={()=>setShowProfile(false)} isMobile={isMobile}/>}
       {showAccountManager&&<SocialAccountManager socialAccounts={socialAccounts} setSocialAccounts={setSocialAccounts} onClose={()=>setShowAccountManager(false)} isMobile={isMobile}/>}
       {showInvite&&<InviteModal onClose={()=>setShowInvite(false)} isMobile={isMobile}/>}
-      {selectedMember&&<MemberDetailModal member={selectedMember} tasks={tasks} campaigns={campaigns} onClose={()=>setSelectedMember(null)} isMobile={isMobile}/>}
+      {selectedMember&&<MemberDetailModal member={selectedMember} tasks={tasks} campaigns={campaigns} taskAssignees={taskAssignees} onClose={()=>setSelectedMember(null)} isMobile={isMobile}/>}
       {previewPost&&<PostPreview post={previewPost} images={getPostImages(previewPost)} members={members} onClose={()=>setPreviewPost(null)} onEdit={()=>{openEditPost(previewPost);setPreviewPost(null);}} isMobile={isMobile}/>}
 
       {/* NOTE MODAL */}
